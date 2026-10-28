@@ -351,7 +351,7 @@ function logo(name, size) {
 const A = {
   s: null, view: 'overview', acct: '', asset: null,
   of: { asset: '全部', side: '全部', st: { '規劃': 1, '已掛單': 1, '已成交': 1, '暫停': 1 }, hint: '', q: '' },
-  sel: new Set(), collapsed: {}, tf: { asset: '全部', side: '全部' }, rf: { asset: '全部', side: '全部', year: '', pending: false }, rsel: new Set(), scen: {}, sim: null, am: {},
+  sel: new Set(), collapsed: {}, tf: { asset: '全部', side: '全部' }, rf: { asset: '', side: '全部', year: '', pending: false }, rsel: new Set(), scen: {}, sim: null, am: {},
   raw: null, ccy: (() => { try { return localStorage.getItem('ccy') || '原幣'; } catch (e) { return '原幣'; } })(), totCcy: 'USD'
 };
 const $ = id => document.getElementById(id);
@@ -2154,14 +2154,18 @@ function realStats(asset, acct) {
   return o;
 }
 function vReal() {
-  const s = A.s, f = A.rf, list = realList();
+  const s = A.s, f = A.rf;
+  // 預設顯示 BTC（沒有 BTC 就顯示這個帳戶第一個有紀錄的資產）
+  if (!f.asset) f.asset = s.assets.some(a => a.name === 'BTC') ? 'BTC' : ((s.assets.find(a => s.real.some(t => inAcct(t) && t.asset === a.name)) || s.assets[0] || { name: '全部' }).name);
+  const list = realList();
   const all = s.real.filter(inAcct), pending = all.filter(t => !t.confirmed);
   const years = [...new Set(all.filter(t => t.time).map(t => String(new Date(t.time).getFullYear())))].sort().reverse();
   let h = `<h1>真實交易紀錄 <small>${list.length} / ${all.length} 筆 · ${esc(A.acct)}</small><span class="sp"></span>
     <button class="btn" data-act="realImport">⇪ 匯入</button><button class="btn" data-act="addReal">＋ 新增交易</button></h1>
     <p class="small muted" style="margin-top:-6px">這裡是你實際成交的買賣（含掛單以外的交易，例如市價單、定投、轉帳換幣）。掛單簿裡「已掛單」的單登記成交時，會自動寫進來並標示<b>待確認</b>；其他紀錄都由你自己新增或修改。</p>`;
   if (pending.length) h += `<div class="alerts"><div class="alert near" data-act="rfPending"><b>${pending.length}</b> 筆由掛單成交自動寫入的交易待確認 →</div></div>`;
-  h += `<div class="filters"><select data-act="rfAsset"><option value="全部">全部資產</option>${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+  h += `<div class="chips" style="margin-bottom:10px"><button class="chipbtn ${f.asset === '全部' ? 'on' : ''}" data-act="rfPick" data-asset="全部">全部</button>${s.assets.filter(a => all.some(t => t.asset === a.name) || a.name === f.asset).map(a => `<button class="chipbtn ${f.asset === a.name ? 'on' : ''}" data-act="rfPick" data-asset="${esc(a.name)}">${logo(a.name, 16)}${esc(a.name)}<span class="c">${all.filter(t => t.asset === a.name).length}</span></button>`).join('')}</div>
+  <div class="filters"><select data-act="rfAsset"><option value="全部" ${f.asset === '全部' ? 'selected' : ''}>全部資產</option>${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
     <div class="seg">${['全部', '買', '賣'].map(x => `<button data-act="rfSide" data-v="${x}" class="${f.side === x ? 'on' : ''}">${x === '全部' ? '買＋賣' : x === '賣' ? '賣出' : '買入'}</button>`).join('')}</div>
     <select data-act="rfYear"><option value="">全部年份</option>${years.map(y => `<option ${f.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
     <button class="chipbtn ${f.pending ? 'on' : ''}" data-act="rfTogglePending">只看待確認</button></div>`;
@@ -2171,7 +2175,7 @@ function vReal() {
     assets.forEach(a => {
       const st = realStats(a.name), hi = holdingInfo(a.name), hq = hi.q;
       const diff = hq !== null && hq !== undefined ? st.pos - hq : null;
-      h += `<div class="kpi"><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆　手續費 ${fusd(st.fee, a.name)}</div>
+      h += `<div class="kpi"${assets.length === 1 ? ' style="max-width:560px"' : ''}><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆　手續費 ${fusd(st.fee, a.name)}</div>
         <div class="kv" style="margin-top:4px"><span>買入</span><b>${fq(st.bq, a.name)}<small>${fusd(st.bv, a.name)} · 均 ${st.bq ? fp(st.bv / st.bq, a.name) : '—'}</small></b>
         <span>賣出</span><b>${fq(st.sq, a.name)}<small>${fusd(st.sv, a.name)} · 均 ${st.sq ? fp(st.sv / st.sq, a.name) : '—'}</small></b>
         <span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${st.avg ? '平均成本 ' + fp(st.avg, a.name) : ''}</small></b>
@@ -2372,6 +2376,7 @@ document.addEventListener('click', e => {
     case 'rfSide': A.rf.side = d.v; return render();
     case 'rfTogglePending': A.rf.pending = !A.rf.pending; return render();
     case 'rfPending': A.rf = { asset: '全部', side: '全部', year: '', pending: true }; return render();
+    case 'rfPick': A.rf.asset = d.asset; return render();
     case 'editReal': return openReal(d.id);
     case 'addReal': return openReal(null);
     case 'realImport': return openRealImport();
