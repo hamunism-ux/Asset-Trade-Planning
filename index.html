@@ -974,7 +974,7 @@ function vOverview() {
     const w = q => tot ? (q / tot * 100) + '%' : '0';
     h += `<div class="card acard" data-act="goAsset" data-asset="${esc(a.name)}">
       <div class="hd">${logo(a.name, 26)}<b>${esc(a.name)}</b><span class="src">${esc(a.source || '沒有價格')}</span><span class="p">${fp(a.price, a.name)}</span></div>
-      <div class="kv"><span>估計持倉${hq !== null && hi.missing.length ? `<small class="muted">（只含 ${esc(hi.known.join('、'))}）</small>` : ''}</span><b>${hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}<small>${hq !== null && a.price ? fusd(hq * a.price, a.name) : ''}</small></b></div>
+      <div class="kv"><span>持倉${hq !== null && hi.missing.length ? `<small class="muted">（只含 ${esc(hi.known.join('、'))}）</small>` : ''}</span><b>${hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}<small>${hq !== null && a.price ? fusd(hq * a.price, a.name) : ''}</small></b></div>
       ${tot ? `<div class="lbl"><span>賣單完成 <b>${fpct(sS[ST.FILLED].q / tot, false)}</b></span><span>${fq(sS[ST.FILLED].q, a.name)} / ${fq(tot, a.name)}</span></div>
       <div class="bar"><i style="width:${w(sS[ST.FILLED].q)};background:var(--filled)"></i><i style="width:${w(sS[ST.PLACED].q)};background:var(--placed)"></i><i style="width:${w(sS[ST.PLAN].q)};background:var(--plan)"></i></div>` : '<div class="lbl"><span class="muted">沒有賣單</span></div>'}
       <div class="kv" style="margin-top:9px">
@@ -1027,7 +1027,7 @@ function vAsset() {
       <span>未成交所需資金</span><b>${fusd(sB.openV, n)}<small>均價 ${sB.openQ ? fp(sB.openV / sB.openQ, n) : '—'}</small></b>
       <span>下一個買價</span><b>${sB.next ? fp(sB.next, n) + `<small>${fpct(sB.next / a.price - 1)}</small>` : '—'}</b></div></div>
     <div class="card"><h2>持倉</h2>
-      <div class="kv"><span>估計持倉</span><b>${hq === null ? '<span class="muted">未設定</span>' : fq(hq, n)}</b>
+      <div class="kv"><span>持倉</span><b>${hq === null ? '<span class="muted">未設定</span>' : fq(hq, n)}</b>
       <span>持倉價值</span><b>${hq !== null && a.price ? fusd(hq * a.price, n) : '—'}</b>
       <span>未成交賣單 ÷ 持倉</span><b class="${hq && sK > hq ? 'down' : ''}">${hq ? fpct(sK / hq, false) : '—'}</b>
       <span>賣單全成交後</span><b class="${hq !== null && hq - sK < 0 ? 'down' : ''}">${hq !== null ? fq(hq - sK, n) : '—'}</b>
@@ -1720,8 +1720,8 @@ function holdSection() {
   const missing = [];
   s.orders.forEach(o => { const k = o.acct + '|' + o.asset; if (!have.has(k) && missing.indexOf(k) < 0) missing.push(k); });
   let h = `<h2 style="margin-top:4px">持倉 <small class="muted" style="font-weight:400">每個資產可選「手動」或「跟隨真實交易紀錄」</small></h2>
-  <div class="small muted" style="margin-bottom:8px"><b>手動</b>：在「基準持倉量」填你在交易所看到的實際數量（按 Enter 或離開欄位就會儲存，基準時間＝現在），之後登記的掛單成交買入會加、賣出會減。<b>跟隨真實交易紀錄</b>：估計持倉 = 真實交易紀錄的買入總量 − 賣出總量，不用手動維護。2026 以前的原表成交（沒有日期）不會影響持倉。</div>`;
-  h += `<div class="tw"><table><thead><tr><th class="l">帳戶</th><th class="l">資產</th><th class="l">模式</th><th>基準持倉量</th><th class="l">基準時間</th><th>之後買入</th><th>之後賣出</th><th>估計目前持倉</th><th>現價</th><th>持倉價值</th><th>未成交賣單</th><th>未成交買單</th><th>全部成交後</th><th></th></tr></thead><tbody>`;
+  <div class="small muted" style="margin-bottom:8px"><b>手動</b>：在「基準持倉量」填你在交易所看到的實際數量（按 Enter 或離開欄位就會儲存，基準時間＝現在），之後登記的掛單成交買入會加、賣出會減。<b>跟隨真實交易紀錄</b>：持倉 = 真實交易紀錄的買入總量 − 賣出總量，不用手動維護。2026 以前的原表成交（沒有日期）不會影響持倉。</div>`;
+  h += `<div class="tw"><table><thead><tr><th class="l">帳戶</th><th class="l">資產</th><th class="l">模式</th><th>基準持倉量</th><th class="l">基準時間</th><th>之後買入</th><th>之後賣出</th><th>持倉</th><th>現價</th><th>持倉價值</th><th>未成交賣單</th><th>未成交買單</th><th>全部成交後</th><th></th></tr></thead><tbody>`;
   if (!rows.length) h += '<tr><td colspan="13" class="empty">還沒有持倉資料</td></tr>';
   rows.forEach(r => {
     const a = A.am[r.asset] || {}, n = r.asset;
@@ -2203,8 +2203,8 @@ function vReal() {
       const follow = hold && hold.mode === '真實交易';
       const diff = hq !== null ? st.pos - hq : null, tol = Math.pow(10, -qdOf(a.name)) / 2;
       h += `<div class="kpi"${assets.length === 1 ? ' style="max-width:560px"' : ''}><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆${st.fee ? '　手續費 ' + fusd(st.fee, a.name) : ''}</div>
-        <div class="kv" style="margin-top:4px"><span>買入</span><b>${fq(st.bq, a.name)}<small>${fusd(st.bv, a.name)} · 均 ${st.bq ? fp(st.bv / st.bq, a.name) : '—'}</small></b>
-        <span>賣出</span><b>${fq(st.sq, a.name)}<small>${fusd(st.sv, a.name)} · 均 ${st.sq ? fp(st.sv / st.sq, a.name) : '—'}</small></b>
+        <div class="kv" style="margin-top:4px"><span>買入</span><b>${fq(st.bq, a.name)}<small>${fusd(st.bv, a.name)}</small></b>
+        <span>賣出</span><b>${fq(st.sq, a.name)}<small>${fusd(st.sv, a.name)}</small></b>
         <span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${a.price ? '市值 ' + fusd(st.pos * a.price, a.name) : ''}</small></b>
         <span>法幣淨投入<small class="muted" style="display:block">用錢買 − 賣成錢；幣幣交換、轉帳不算</small></span><b class="${st.net <= 0 ? 'up' : ''}">${st.net > 0 ? fusd(st.net, a.name) : '已全部回本'}<small>${st.net > 0 ? (st.unitCost ? '剩餘部位每單位成本 ' + fp(st.unitCost, a.name) : '') : '多收回 ' + fusd(-st.net, a.name) + '，剩餘部位成本 0'}</small></b>
         ${st.swapIn || st.swapOut || st.xIn || st.xOut ? `<span>幣幣／轉帳</span><b style="font-weight:500;font-size:12px">${st.swapIn || st.swapOut ? `換入 ${fq(st.swapIn, a.name)}、換出 ${fq(st.swapOut, a.name)}` : ''}${(st.swapIn || st.swapOut) && (st.xIn || st.xOut) ? '；' : ''}${st.xIn || st.xOut ? `轉入 ${fq(st.xIn, a.name)}、轉出 ${fq(st.xOut, a.name)}` : ''}</b>` : ''}
@@ -2323,7 +2323,7 @@ function openRealImport() {
 }
 
 // ═════════════ 真實交易圖表：歷史價格 ＋ 買賣點 ═════════════
-const PH = { cache: {}, loading: {} };
+const PH = { cache: {}, loading: {}, fail: {} };
 function phKey(asset) { return 'ph.' + asset; }
 function phGet(asset) {
   if (PH.cache[asset]) return PH.cache[asset];
@@ -2334,7 +2334,7 @@ function phGet(asset) {
 function phLoad(asset, force) {
   if (PH.loading[asset]) return;
   PH.loading[asset] = true;
-  const done = r => { PH.loading[asset] = false; if (r) { PH.cache[asset] = r; LS.set(phKey(asset), r); } if (A.view === 'real' && A.rf.asset === asset) realChart(); };
+  const done = r => { PH.loading[asset] = false; if (r && r.points && r.points.length) { PH.cache[asset] = r; LS.set(phKey(asset), r); } else { PH.cache[asset] = null; LS.del(phKey(asset)); PH.fail[asset] = (r && r.note) || '抓不到歷史價格'; } if (A.view === 'real' && A.rf.asset === asset) realChart(); };
   srv('api_priceHistory', [asset, !!force]).then(done).catch(e => { PH.loading[asset] = false; PH.err = e.message; if (A.view === 'real' && A.rf.asset === asset) realChart(); });
 }
 function realChart() {
@@ -2342,7 +2342,7 @@ function realChart() {
   const asset = A.rf.asset, a = A.am[asset]; if (!a) { host.innerHTML = ''; return; }
   const ph = phGet(asset);
   const stale = !ph || !ph.updated || (Date.now() - new Date(ph.updated).getTime()) > 7 * 864e5;
-  if (stale && !PH.loading[asset] && (GAS || (SY.cfg && navigator.onLine !== false))) phLoad(asset);
+  if (stale && !PH.loading[asset] && !PH.fail[asset] && (GAS || (SY.cfg && navigator.onLine !== false))) phLoad(asset);
   const ts = A.s.real.filter(t => inAcct(t) && t.asset === asset && t.time && (A.rf.side === '全部' || t.side === A.rf.side) && (!A.rf.year || String(new Date(t.time).getFullYear()) === A.rf.year) && (!A.rf.pending || !t.confirmed)).sort((x, y) => x.time - y.time);
   const native = a.ccy, dccy = a.dccy;
   // 價格線（資產原幣）→ 顯示幣別（用最新匯率；只是為了和交易點同一個尺度）
@@ -2398,7 +2398,7 @@ function realChart() {
     c.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
   });
   const meta = $('rChartMeta');
-  if (meta) meta.innerHTML = `${ph && ph.source ? `價格線：${esc(ph.source)}，${esc(ph.updated || '')} 更新` : (PH.loading[asset] ? '正在抓歷史價格…' : `沒有歷史價格${ph && ph.note ? '（' + esc(ph.note) + '）' : ''}，只畫交易點`)}　·　以 ${esc(dccy)} 計${native !== dccy ? '（價格線用最新匯率換算）' : ''}　·　${logY ? '對數刻度' : '線性刻度'} <span class="tlink" data-act="rfLog">切換</span>　·　<span class="tlink" data-act="phRefresh">重新抓取</span>`;
+  if (meta) meta.innerHTML = `${ph && ph.source ? `價格線：${esc(ph.source)}，${esc(ph.updated || '')} 更新` : (PH.loading[asset] ? '正在抓歷史價格…' : `沒有歷史價格${PH.fail[asset] ? '（' + esc(PH.fail[asset]) + '）' : ''}，只畫交易點`)}　·　以 ${esc(dccy)} 計${native !== dccy ? '（價格線用最新匯率換算）' : ''}　·　${logY ? '對數刻度' : '線性刻度'} <span class="tlink" data-act="rfLog">切換</span>　·　<span class="tlink" data-act="phRefresh">重新抓取</span>`;
 }
 function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x || 1))); const m = x / p; return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p; }
 
@@ -2568,7 +2568,7 @@ document.addEventListener('click', e => {
     case 'realConfirm': return call('api_confirmReal', [[d.id]], () => { toast('已確認'); render(); });
     case 'realFollow': return call('api_saveHolding', [{ acct: A.acct, asset: d.asset, mode: '真實交易' }], () => { toast(`${d.asset} 的持倉改為跟隨真實交易紀錄`); render(); });
     case 'rfLog': A.rf.log = A.rf.log === false ? true : false; return realChart();
-    case 'phRefresh': PH.cache[A.rf.asset] = null; LS.del(phKey(A.rf.asset)); phLoad(A.rf.asset, true); return realChart();
+    case 'phRefresh': PH.cache[A.rf.asset] = null; PH.fail[A.rf.asset] = ''; LS.del(phKey(A.rf.asset)); phLoad(A.rf.asset, true); return realChart();
     case 'lkGo': return doUnlock();
     case 'acctLock': return lockNow(d.a);
     case 'acctPw': return openPassword(d.a);
