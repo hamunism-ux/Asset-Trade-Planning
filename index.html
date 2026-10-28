@@ -320,6 +320,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
+const APP_UI_VER = '3.5';
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
 const SCLS = { '規劃': 's-plan', '已掛單': 's-placed', '已成交': 's-filled', '暫停': 's-paused' };
@@ -1760,7 +1761,7 @@ function openHoldTime(acct, asset) {
 function vSettings() {
   const s = A.s, st = s.settings;
   const cnt = (list, a) => list.filter(x => x.acct === a).length;
-  let h = `<h1>設定</h1>${syncCard()}<div class="grid g2${GAS ? '' : ' mt'}">
+  let h = `<h1>設定 <small>網頁 v${esc(APP_UI_VER)}${A.raw && A.raw.ver ? ' · 伺服器 v' + esc(A.raw.ver) : ''}${A.raw && A.raw.ver && A.raw.ver !== APP_UI_VER ? ' <span style="color:var(--warn)">（版本不一致，請把部署改成新版本）</span>' : ''}</small></h1>${syncCard()}<div class="grid g2${GAS ? '' : ' mt'}">
   <div class="card"><h2>帳戶</h2>
     <div class="tw"><table><thead><tr><th class="l">名稱</th><th>掛單</th><th>掛單成交</th><th>真實交易</th><th>持倉列</th><th class="l">密碼</th><th></th></tr></thead><tbody>
     ${st.accounts.map(a => `<tr><td class="l"><b>${esc(a)}</b>${a === A.acct ? ' <span class="pending" style="background:var(--accent-wash);color:var(--accent-ink)">目前</span>' : ''}</td>
@@ -2182,20 +2183,20 @@ function realStats(asset, acct) {
 function vReal() {
   const s = A.s, f = A.rf;
   // 預設顯示 BTC（沒有 BTC 就顯示這個帳戶第一個有紀錄的資產）
-  if (!f.asset) f.asset = s.assets.some(a => a.name === 'BTC') ? 'BTC' : ((s.assets.find(a => s.real.some(t => inAcct(t) && t.asset === a.name)) || s.assets[0] || { name: '全部' }).name);
+  if (!f.asset || f.asset === '全部' || !s.assets.some(a => a.name === f.asset)) f.asset = s.assets.some(a => a.name === 'BTC') ? 'BTC' : ((s.assets.find(a => s.real.some(t => inAcct(t) && t.asset === a.name)) || s.assets[0] || { name: '' }).name);
   const list = realList();
   const all = s.real.filter(inAcct), pending = all.filter(t => !t.confirmed);
   const years = [...new Set(all.filter(t => t.time).map(t => String(new Date(t.time).getFullYear())))].sort().reverse();
-  let h = `<h1>真實交易紀錄 <small>${list.length} / ${all.length} 筆 · ${esc(A.acct)}</small><span class="sp"></span>
+  let h = `<h1>真實交易紀錄 <small>${esc(f.asset)} ${list.length} 筆 · ${esc(A.acct)} 共 ${all.length} 筆</small><span class="sp"></span>
     <button class="btn" data-act="realImport">⇪ 匯入</button><button class="btn" data-act="addReal">＋ 新增交易</button></h1>
     <p class="small muted" style="margin-top:-6px">這裡是你實際成交的買賣（含掛單以外的交易，例如市價單、定投、轉帳換幣）。掛單簿裡「已掛單」的單登記成交時，會自動寫進來並標示<b>待確認</b>；其他紀錄都由你自己新增或修改。</p>`;
-  if (pending.length) h += `<div class="alerts"><div class="alert near" data-act="rfPending"><b>${pending.length}</b> 筆由掛單成交自動寫入的交易待確認 →</div></div>`;
-  h += `<div class="chips" style="margin-bottom:10px"><button class="chipbtn ${f.asset === '全部' ? 'on' : ''}" data-act="rfPick" data-asset="全部">全部</button>${s.assets.filter(a => all.some(t => t.asset === a.name) || a.name === f.asset).map(a => `<button class="chipbtn ${f.asset === a.name ? 'on' : ''}" data-act="rfPick" data-asset="${esc(a.name)}">${logo(a.name, 16)}${esc(a.name)}<span class="c">${all.filter(t => t.asset === a.name).length}</span></button>`).join('')}</div>
-  <div class="filters"><select data-act="rfAsset"><option value="全部" ${f.asset === '全部' ? 'selected' : ''}>全部資產</option>${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+  if (pending.length) h += `<div class="alerts"><div class="alert near" data-act="rfPending"><b>${pending.length}</b> 筆由掛單成交自動寫入的交易待確認（${[...new Set(pending.map(t => t.asset))].join('、')}）→</div></div>`;
+  h += `<div class="chips" style="margin-bottom:10px">${s.assets.filter(a => all.some(t => t.asset === a.name) || a.name === f.asset).map(a => `<button class="chipbtn ${f.asset === a.name ? 'on' : ''}" data-act="rfPick" data-asset="${esc(a.name)}">${logo(a.name, 16)}${esc(a.name)}<span class="c">${all.filter(t => t.asset === a.name).length}</span></button>`).join('')}</div>
+  <div class="filters"><select data-act="rfAsset">${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
     <div class="seg">${['全部', '買', '賣'].map(x => `<button data-act="rfSide" data-v="${x}" class="${f.side === x ? 'on' : ''}">${x === '全部' ? '買＋賣' : x === '賣' ? '賣出' : '買入'}</button>`).join('')}</div>
     <select data-act="rfYear"><option value="">全部年份</option>${years.map(y => `<option ${f.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
     <button class="chipbtn ${f.pending ? 'on' : ''}" data-act="rfTogglePending">只看待確認</button></div>`;
-  const assets = s.assets.filter(a => all.some(t => t.asset === a.name) && (f.asset === '全部' || a.name === f.asset));
+  const assets = s.assets.filter(a => a.name === f.asset);
   if (assets.length) {
     h += '<div class="kpis" style="margin-bottom:12px">';
     assets.forEach(a => {
@@ -2213,7 +2214,7 @@ function vReal() {
     });
     h += '</div>';
   }
-  if (f.asset !== '全部' && all.some(t => t.asset === f.asset)) h += `<div class="card" style="margin-bottom:12px"><h2>${logo(f.asset, 18)} ${esc(f.asset)} 歷史價格與買賣 <small class="muted" style="font-weight:400">${f.side === '全部' ? '' : '只畫' + f.side + '入／出'}${f.year ? ' · ' + f.year + ' 年' : ''}</small></h2><div id="rChart" style="position:relative"></div><div id="rChartMeta" class="small muted" style="margin-top:6px"></div><div class="legend" style="margin-top:4px"><span><i style="background:var(--placed)"></i>買入</span><span><i style="background:var(--plan)"></i>賣出</span><span class="muted">圓點大小 = 數量</span></div></div>`;
+  if (all.some(t => t.asset === f.asset)) h += `<div class="card" style="margin-bottom:12px"><h2>${logo(f.asset, 18)} ${esc(f.asset)} 歷史價格與買賣 <small class="muted" style="font-weight:400">${f.side === '全部' ? '' : '只畫' + f.side + '入／出'}${f.year ? ' · ' + f.year + ' 年' : ''}</small></h2><div id="rChart" style="position:relative"></div><div id="rChartMeta" class="small muted" style="margin-top:6px"></div><div class="legend" style="margin-top:4px"><span><i style="background:var(--placed)"></i>買入</span><span><i style="background:var(--plan)"></i>賣出</span><span class="muted">圓點大小 = 數量</span></div></div>`;
   if (!list.length) { view().innerHTML = h + `<div class="card empty">${all.length ? '沒有符合篩選的紀錄' : '還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。'}</div>`; realChart(); return; }
   const selAll = list.every(t => A.rsel.has(t.id));
   h += `<div class="tw" style="max-height:calc(100vh - 300px)"><table><thead><tr><th class="c"><input type="checkbox" data-act="rselAll" ${selAll ? 'checked' : ''}></th><th class="l">時間</th><th class="l">資產</th><th class="c">方向</th><th>價格</th><th>數量</th><th>金額</th><th>手續費</th><th class="l">交易所</th><th class="l">來源</th><th class="l">備註</th><th></th></tr></thead><tbody>`;
@@ -2335,7 +2336,7 @@ function phLoad(asset, force) {
   if (PH.loading[asset]) return;
   PH.loading[asset] = true;
   const done = r => { PH.loading[asset] = false; if (r && r.points && r.points.length) { PH.cache[asset] = r; LS.set(phKey(asset), r); } else { PH.cache[asset] = null; LS.del(phKey(asset)); PH.fail[asset] = (r && r.note) || '抓不到歷史價格'; } if (A.view === 'real' && A.rf.asset === asset) realChart(); };
-  srv('api_priceHistory', [asset, !!force]).then(done).catch(e => { PH.loading[asset] = false; PH.err = e.message; if (A.view === 'real' && A.rf.asset === asset) realChart(); });
+  srv('api_priceHistory', [asset, !!force]).then(done).catch(e => { PH.loading[asset] = false; PH.fail[asset] = '讀取失敗：' + (e && e.message || e) + (/不支援/.test(String(e && e.message)) ? '（伺服器程式還是舊版，請把「任何人」的部署改成新版本）' : ''); if (A.view === 'real' && A.rf.asset === asset) realChart(); });
 }
 function realChart() {
   const host = $('rChart'); if (!host) return;
@@ -2560,7 +2561,7 @@ document.addEventListener('click', e => {
     case 'tfSide': A.tf.side = d.v; return render();
     case 'rfSide': A.rf.side = d.v; return render();
     case 'rfTogglePending': A.rf.pending = !A.rf.pending; return render();
-    case 'rfPending': A.rf = { asset: '全部', side: '全部', year: '', pending: true }; return render();
+    case 'rfPending': { const p1 = A.s.real.find(t => inAcct(t) && !t.confirmed); A.rf = { asset: p1 ? p1.asset : A.rf.asset, side: '全部', year: '', pending: true }; return render(); }
     case 'rfPick': A.rf.asset = d.asset; return render();
     case 'editReal': return openReal(d.id);
     case 'addReal': return openReal(null);
