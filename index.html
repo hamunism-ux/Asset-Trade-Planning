@@ -1,0 +1,2273 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta name="theme-color" content="#1f2328">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="掛單規劃本">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>資產掛單規劃本 Asset Ladder Planner</title>
+<style>
+  :root {
+    --plane: #f4f3ef; --card: #ffffff; --surface: #fcfcfb;
+    --ink: #1f2328; --ink2: #52514e; --muted: #898781; --line: #e1e0d9; --line2: #efeee9;
+    --accent: #2a78d6; --accent-ink: #1c5cab; --accent-wash: #eaf2fc;
+    --filled: #898781; --placed: #1baf7a; --plan: #eda100; --paused: #d4d2ca;
+    --filled-bg: #ecebe7; --placed-bg: #dcf3ea; --plan-bg: #fff6d9;
+    --good: #006300; --bad: #b3261e; --bad-bg: #fdecea; --warn: #9a5b00; --warn-bg: #fff4e5;
+    --r: 10px;
+    --font: system-ui, -apple-system, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--plane); color: var(--ink); font: 13.5px/1.5 var(--font); -webkit-text-size-adjust: 100%; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a { color: var(--accent-ink); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* top bar */
+  header.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 14px; padding: 0 16px;
+    height: 54px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .brand { font-weight: 750; font-size: 15px; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .brand i { width: 10px; height: 10px; border-radius: 3px; background: var(--plan); display: inline-block; box-shadow: 12px 0 0 var(--placed); margin-right: 12px; }
+  nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1; }
+  nav::-webkit-scrollbar { display: none; }
+  nav button { border: 0; background: none; padding: 7px 11px; border-radius: 7px; cursor: pointer; color: var(--ink2); white-space: nowrap; }
+  nav button:hover { background: var(--plane); }
+  nav button.on { background: var(--ink); color: #fff; }
+  .tools { display: flex; gap: 8px; align-items: center; }
+  .tools .meta { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+
+  main { max-width: 1320px; margin: 0 auto; padding: 16px 16px 90px; }
+  h1 { font-size: 19px; margin: 2px 0 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  h1 small { font-size: 12.5px; color: var(--muted); font-weight: 400; }
+  h1 .btn, h2 .btn { font-size: 13px; font-weight: 500; }
+  .lg { border-radius: 50%; vertical-align: middle; flex: none; object-fit: contain; }
+  .lg-b { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 700; vertical-align: middle; flex: none; line-height: 1; }
+  .chipbtn .lg, .chipbtn .lg-b { margin: -2px 4px 0 -4px; }
+  .acard .hd { align-items: center; }
+  h2 { font-size: 14px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  h2 .sp, .sp { flex: 1; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; }
+  .grid { display: grid; gap: 12px; }
+  .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mt { margin-top: 12px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  /* controls */
+  select, input[type=number], input[type=text], input[type=datetime-local], textarea {
+    height: 32px; border: 1px solid var(--line); border-radius: 7px; background: #fff; padding: 0 9px; min-width: 0; }
+  textarea { height: auto; padding: 8px 9px; width: 100%; resize: vertical; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent-wash); border-color: var(--accent); }
+  .btn { height: 32px; padding: 0 13px; border-radius: 7px; border: 1px solid var(--line); background: #fff; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { background: var(--plane); }
+  .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .btn.primary:hover { background: #000; }
+  .btn.danger { color: var(--bad); border-color: #f0c6c2; }
+  .btn.danger:hover { background: var(--bad-bg); }
+  .btn.sm { height: 27px; padding: 0 9px; font-size: 12.5px; }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+  .seg button { border: 0; background: transparent; padding: 0 12px; height: 30px; cursor: pointer; color: var(--ink2); }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chipbtn { border: 1px solid var(--line); background: #fff; border-radius: 16px; padding: 3px 11px; cursor: pointer; font-size: 12.5px; color: var(--ink2); }
+  .chipbtn.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .chipbtn .c { opacity: .65; margin-left: 4px; }
+
+  /* status chips */
+  .st { display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border-radius: 11px; font-size: 12px; line-height: 22px; cursor: pointer; border: 0; white-space: nowrap; }
+  .st::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: currentColor; opacity: .8; }
+  .st.s-plan { background: #ffe9a8; color: #7a5300; }
+  .st.s-placed { background: #c4ecdc; color: #0d6b4a; }
+  .st.s-filled { background: #dddcd6; color: #5d5c57; }
+  .st.s-paused { background: #f1f0ec; color: #8a8984; }
+  .st.s-new { background: #ffe9a8; color: #7a5300; cursor: default; }
+  .hint { font-size: 12px; white-space: nowrap; }
+  .hint.cross { color: var(--bad); font-weight: 650; }
+  .hint.wrong { color: var(--warn); }
+  .hint.near { color: var(--accent-ink); font-weight: 600; }
+  .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .kpi { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; min-width: 0; }
+  .kpi .l { color: var(--muted); font-size: 11.5px; }
+  .kpi .v { font-size: 18px; font-weight: 680; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .kpi .v small { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .kpi .s { color: var(--ink2); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 13px; }
+  .kv span { color: var(--ink2); }
+  .kv b { text-align: right; font-weight: 620; font-variant-numeric: tabular-nums; }
+  .kv b small { color: var(--muted); font-weight: 400; margin-left: 4px; }
+  .up { color: var(--good); } .down { color: var(--bad); }
+
+  /* progress bar */
+  .bar { height: 8px; border-radius: 4px; background: var(--line2); overflow: hidden; display: flex; gap: 2px; }
+  .bar i { display: block; height: 100%; }
+  .bar i:first-child { border-radius: 4px 0 0 4px; }
+  .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink2); align-items: center; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .legend i.tick { height: 2px; width: 12px; background: var(--ink); vertical-align: 3px; }
+
+  /* overview */
+  .alerts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .alert { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 9px; cursor: pointer; border: 1px solid var(--line); background: var(--card); }
+  .alert b { font-size: 16px; }
+  .alert.cross { border-color: #f0c6c2; background: var(--bad-bg); color: var(--bad); }
+  .alert.near { border-color: #c9dcf5; background: var(--accent-wash); color: var(--accent-ink); }
+  .alert.wrong { border-color: #f3dcb3; background: var(--warn-bg); color: var(--warn); }
+  .alert.ok { color: var(--muted); cursor: default; }
+  .acards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+  .acard { cursor: pointer; transition: box-shadow .15s; }
+  .acard:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+  .acard .hd { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .acard .hd b { font-size: 17px; }
+  .acard .hd .p { margin-left: auto; font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .acard .src { color: var(--muted); font-size: 11px; }
+  .acard .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink2); margin: 9px 0 4px; }
+
+  /* tables */
+  .tw { overflow: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th { position: sticky; top: 0; background: #f3f2ee; color: var(--ink2); font-weight: 600; text-align: right; padding: 7px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; z-index: 2; font-size: 12.5px; }
+  td { padding: 5px 9px; text-align: right; border-bottom: 1px solid var(--line2); white-space: nowrap; }
+  th.l, td.l { text-align: left; } th.c, td.c { text-align: center; }
+  tbody tr:hover td { background: #fafaf7; }
+  tr.r-filled td { background: var(--filled-bg) !important; color: #8a8984; }
+  tr.r-filled td.px, tr.r-filled td.q { text-decoration: line-through; }
+  tr.r-placed td { background: #f1fbf6; }
+  tr.r-paused td { color: #a9a7a0; font-style: italic; }
+  tr.sel td { background: var(--accent-wash) !important; }
+  tr.grp td { background: #f7f6f2 !important; font-weight: 600; text-align: left; border-bottom: 1px solid var(--line); padding: 8px 9px; position: sticky; top: 33px; z-index: 1; }
+  tr.grp .gs { font-weight: 400; color: var(--ink2); font-size: 12px; margin-left: 10px; }
+  td input.in { height: 26px; width: 92px; text-align: right; padding: 0 6px; border: 1px solid transparent; background: transparent; border-radius: 5px; font-variant-numeric: tabular-nums; }
+  td input.in:hover { border-color: var(--line); background: #fff; }
+  td input.in:focus { border-color: var(--accent); background: #fff; }
+  td input.note { width: 160px; text-align: left; }
+  td input[type=checkbox], th input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; }
+  .tlink { cursor: pointer; color: var(--accent-ink); }
+  .ibtn { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 14px; padding: 2px 5px; border-radius: 5px; }
+  .ibtn:hover { background: var(--plane); color: var(--ink); }
+  .pending { background: var(--plan-bg); color: var(--warn); padding: 1px 7px; border-radius: 9px; font-size: 11.5px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+
+  /* batch bar */
+  .batch { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 25; background: var(--ink); color: #fff;
+    border-radius: 12px; padding: 8px 10px; display: flex; gap: 6px; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,.25); flex-wrap: wrap; max-width: calc(100% - 20px); }
+  .batch .btn { background: transparent; color: #fff; border-color: rgba(255,255,255,.25); }
+  .batch .btn:hover { background: rgba(255,255,255,.12); }
+  .batch .btn.primary { background: #fff; color: var(--ink); }
+  .batch b { margin: 0 6px; }
+
+  /* charts */
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; }
+  .tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line); border-radius: 7px;
+    box-shadow: 0 8px 22px rgba(0,0,0,.09); padding: 7px 10px; font-size: 12px; min-width: 176px; display: none; z-index: 5; }
+  .tip .h { font-weight: 650; margin-bottom: 3px; }
+  .tip .r { display: flex; justify-content: space-between; gap: 14px; color: var(--ink2); }
+  .tip .r b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .donut { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .donut .lg { font-size: 12.5px; display: grid; gap: 4px; }
+  .donut .lg div { display: flex; gap: 8px; justify-content: space-between; min-width: 170px; }
+  .donut .lg b { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  /* scenario */
+  .scen { display: grid; grid-template-columns: auto 1fr 130px; gap: 10px; align-items: center; }
+  .scen input[type=range] { width: 100%; accent-color: var(--accent); }
+  .scen-out { font-size: 13px; color: var(--ink2); margin-top: 8px; }
+  .scen-out b { color: var(--ink); }
+
+  /* simulator */
+  .sim { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .simp { position: sticky; top: 66px; max-height: calc(100vh - 80px); overflow: auto; }
+  .simp h3 { margin: 14px 0 8px; font-size: 11.5px; letter-spacing: .05em; color: var(--muted); font-weight: 650; }
+  .simp h3:first-child { margin-top: 0; }
+  .f { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 6px 8px; margin-bottom: 6px; }
+  .f > span { color: var(--ink2); font-size: 12.5px; }
+  .f .u { display: flex; align-items: center; gap: 6px; }
+  .f .u input { flex: 1; width: 100%; }
+  .f .u em { font-style: normal; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .readout { background: var(--plane); border-radius: 7px; padding: 7px 9px; font-size: 12.5px; color: var(--ink2); margin: 4px 0 2px; }
+  .readout b { color: var(--ink); }
+  .chk { display: flex; gap: 8px; align-items: flex-start; margin: 7px 0; font-size: 12.5px; color: var(--ink2); cursor: pointer; }
+  .chk input { margin-top: 3px; }
+  tr.new td { background: #fffdf5; }
+  tr.hl td { background: var(--accent-wash) !important; }
+  td input.edited { border-color: var(--plan) !important; background: var(--plan-bg) !important; }
+
+  /* modal & pop */
+  .modal { position: fixed; inset: 0; background: rgba(20,20,20,.32); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 12px; }
+  .modal.hidden { display: none; }
+  .dlg { background: var(--card); border-radius: 12px; width: 520px; max-width: 100%; max-height: calc(100vh - 24px); overflow: auto; padding: 18px 20px; box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+  .dlg h3 { margin: 0 0 12px; font-size: 16px; }
+  .dlg.wide { width: 860px; }
+  .aiout { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; min-height: 80px; }
+  .aiprog { margin-top: 10px; font-size: 13px; color: var(--ink2); }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  .md { font-size: 13.5px; line-height: 1.65; color: var(--ink); }
+  .md h2 { font-size: 15.5px; margin: 16px 0 6px; } .md h3 { font-size: 14px; margin: 14px 0 4px; } .md h4 { font-size: 13.5px; margin: 12px 0 4px; }
+  .md p { margin: 6px 0; } .md ul, .md ol { margin: 6px 0; padding-left: 22px; } .md li { margin: 2px 0; }
+  .md blockquote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--line); color: var(--ink2); }
+  .md code { background: var(--plane); padding: 0 4px; border-radius: 4px; font-size: 12.5px; }
+  .md table.mdt { font-size: 12.5px; } .md table.mdt td, .md table.mdt th { white-space: normal; }
+  .md hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+  .cite { color: var(--accent-ink); font-size: 10px; }
+  .srcs { margin-top: 14px; font-size: 12px; color: var(--ink2); border-top: 1px solid var(--line); padding-top: 8px; }
+  .srcs ol { margin: 4px 0 0; padding-left: 22px; } .srcs a { color: var(--accent-ink); word-break: break-all; }
+  .aimeta { margin-bottom: 4px; }
+  .dlg .foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+  .fg { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .fg label { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink2); }
+  .fg label.full { grid-column: 1 / -1; }
+  .fg input, .fg select { width: 100%; }
+  .note-box { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 9px 11px; font-size: 12.5px; margin: 8px 0; }
+  .pop { position: absolute; z-index: 60; background: var(--card); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 10px 28px rgba(0,0,0,.14); padding: 5px; display: none; }
+  .pop button { display: flex; width: 100%; border: 0; background: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; text-align: left; gap: 8px; align-items: center; }
+  .pop button:hover { background: var(--plane); }
+  .toast { position: fixed; left: 50%; bottom: 78px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 15px; border-radius: 9px; display: none; z-index: 70; max-width: 90%; font-size: 13px; }
+  .toast.err { background: var(--bad); }
+  .syncb { font-size: 12px; padding: 0 9px; white-space: nowrap; }
+  .syncb.sb-ok { color: var(--good); }
+  .syncb.sb-pend { color: var(--accent-ink); border-color: var(--accent); }
+  .syncb.sb-busy { color: var(--muted); }
+  .syncb.sb-warn { color: var(--warn); border-color: #e9b46a; background: var(--warn-bg); }
+  .loading { position: fixed; top: 54px; left: 0; right: 0; height: 3px; z-index: 40; display: none; overflow: hidden; }
+  .loading::after { content: ""; position: absolute; left: -30%; width: 30%; height: 100%; background: var(--accent); animation: ld 1s linear infinite; }
+  @keyframes ld { to { left: 100%; } }
+  .empty { padding: 34px; text-align: center; color: var(--muted); }
+  .setup { max-width: 560px; margin: 60px auto; text-align: center; }
+
+  .gchart { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); }
+  .brand .en { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; padding-top: 2px; }
+  @media (max-width: 900px) {
+    .gchart { grid-template-columns: 1fr; }
+    .sim { grid-template-columns: 1fr; }
+    .simp { position: static; max-height: none; }
+    .g3, .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    header.top { height: auto; flex-wrap: wrap; padding: 8px 12px 6px; gap: 6px; }
+    nav { order: 3; flex-basis: 100%; }
+    .tools { margin-left: auto; }
+    .tools .meta { display: none; }
+    .tools { gap: 5px; }
+    .tools select { max-width: 74px; padding-left: 6px; padding-right: 2px; }
+    .syncb .sbl { display: none; }
+    .brand .en { display: none; }
+    main { padding: 12px 10px 100px; }
+    .g2, .g3, .g4 { grid-template-columns: 1fr; }
+    .scen { grid-template-columns: 1fr 110px; }
+    .scen > span { grid-column: 1 / -1; }
+    .fg { grid-template-columns: 1fr; }
+    .loading { top: 0; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><i></i>資產掛單規劃本<span class="en">Asset Ladder Planner</span></div>
+  <nav id="nav">
+    <button data-v="overview" class="on">總覽</button>
+    <button data-v="orders">掛單簿</button>
+    <button data-v="sim">模擬器</button>
+    <button data-v="trades">成交紀錄</button>
+    <button data-v="settings">設定</button>
+  </nav>
+  <div class="tools">
+    <span class="meta" id="meta"></span>
+    <select id="gCcy" title="計價幣別"><option value="原幣">原幣</option><option value="USD">USD</option><option value="CNY">人民幣</option><option value="TWD">台幣</option></select>
+    <select id="gAcct" title="帳戶"></select>
+    <button class="btn sm syncb" id="syncB" style="display:none" title=""></button>
+    <button class="btn sm" id="btnRefresh" title="重新讀取資料與現價">↻</button>
+  </div>
+</header>
+<div class="loading" id="loading"></div>
+<main id="view"><div class="empty">載入中…</div></main>
+<div class="pop" id="pop"></div>
+<div class="modal hidden" id="modal"><div class="dlg" id="dlg"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// 載入時如果出錯，把原因顯示在畫面上（不要一直停在「載入中…」）
+window.__bootErr = function (msg) {
+  var v = document.getElementById('view');
+  if (!v || window.__booted) return;
+  v.innerHTML = '<div class="card setup" style="text-align:left"><h2>載入失敗</h2><p>請把下面這段訊息截圖給我：</p><pre style="white-space:pre-wrap;font-size:12px;background:#f6f5f1;padding:10px;border-radius:8px">' +
+    String(msg).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }) + '</pre><p class="small muted">也可以在 Apps Script 編輯器上方的函式選單選 <b>api_load</b> → ▶ 執行，看下方執行記錄有沒有錯誤。</p></div>';
+};
+window.addEventListener('error', function (e) { window.__bootErr('JS 錯誤：' + e.message + '\n位置：第 ' + e.lineno + ' 行，第 ' + e.colno + ' 字'); });
+setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40 秒都沒有回應。\n可能是伺服器端（Code.gs）執行太久或卡住；請到 Apps Script 編輯器左側「執行項目」看 api_load 的狀態與錯誤。'); }, 40000);
+</script>
+<script>
+(function () {
+'use strict';
+const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
+const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
+const SCLS = { '規劃': 's-plan', '已掛單': 's-placed', '已成交': 's-filled', '暫停': 's-paused' };
+const RCLS = { '規劃': '', '已掛單': 'r-placed', '已成交': 'r-filled', '暫停': 'r-paused' };
+const COL = { filled: '#898781', placed: '#1baf7a', plan: '#eda100', paused: '#d4d2ca', accent: '#2a78d6', ink: '#1f2328' };
+const HINT = { cross: '❗ 已穿越，確認成交', wrong: '⚠ 在現價另一側', near: '⚡ 接近現價，可掛' };
+
+const ICONS = {BTC:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iI0Y3OTMxQSIvPjxwYXRoIGZpbGw9IiNGRkYiIGZpbGwtcnVsZT0ibm9uemVybyIgZD0iTTIzLjE4OSAxNC4wMmMuMzE0LTIuMDk2LTEuMjgzLTMuMjIzLTMuNDY1LTMuOTc1bC43MDgtMi44NC0xLjcyOC0uNDMtLjY5IDIuNzY1Yy0uNDU0LS4xMTQtLjkyLS4yMi0xLjM4NS0uMzI2bC42OTUtMi43ODNMMTUuNTk2IDZsLS43MDggMi44MzljLS4zNzYtLjA4Ni0uNzQ2LS4xNy0xLjEwNC0uMjZsLjAwMi0uMDA5LTIuMzg0LS41OTUtLjQ2IDEuODQ2czEuMjgzLjI5NCAxLjI1Ni4zMTJjLjcuMTc1LjgyNi42MzguODA1IDEuMDA2bC0uODA2IDMuMjM1Yy4wNDguMDEyLjExLjAzLjE4LjA1N2wtLjE4My0uMDQ1LTEuMTMgNC41MzJjLS4wODYuMjEyLS4zMDMuNTMxLS43OTMuNDEuMDE4LjAyNS0xLjI1Ni0uMzEzLTEuMjU2LS4zMTNsLS44NTggMS45NzggMi4yNS41NjFjLjQxOC4xMDUuODI4LjIxNSAxLjIzMS4zMThsLS43MTUgMi44NzIgMS43MjcuNDMuNzA4LTIuODRjLjQ3Mi4xMjcuOTMuMjQ1IDEuMzc4LjM1N2wtLjcwNiAyLjgyOCAxLjcyOC40My43MTUtMi44NjZjMi45NDguNTU4IDUuMTY0LjMzMyA2LjA5Ny0yLjMzMy43NTItMi4xNDYtLjAzNy0zLjM4NS0xLjU4OC00LjE5MiAxLjEzLS4yNiAxLjk4LTEuMDAzIDIuMjA3LTIuNTM4em0tMy45NSA1LjUzOGMtLjUzMyAyLjE0Ny00LjE0OC45ODYtNS4zMi42OTVsLjk1LTMuODA1YzEuMTcyLjI5MyA0LjkyOS44NzIgNC4zNyAzLjExem0uNTM1LTUuNTY5Yy0uNDg3IDEuOTUzLTMuNDk1Ljk2LTQuNDcuNzE3bC44Ni0zLjQ1Yy45NzUuMjQzIDQuMTE4LjY5NiAzLjYxIDIuNzMzeiIvPjwvZz48L3N2Zz4=',
+ETH:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPjxnIGZpbGw9IiNGRkYiIGZpbGwtcnVsZT0ibm9uemVybyI+PHBhdGggZmlsbC1vcGFjaXR5PSIuNjAyIiBkPSJNMTYuNDk4IDR2OC44N2w3LjQ5NyAzLjM1eiIvPjxwYXRoIGQ9Ik0xNi40OTggNEw5IDE2LjIybDcuNDk4LTMuMzV6Ii8+PHBhdGggZmlsbC1vcGFjaXR5PSIuNjAyIiBkPSJNMTYuNDk4IDIxLjk2OHY2LjAyN0wyNCAxNy42MTZ6Ii8+PHBhdGggZD0iTTE2LjQ5OCAyNy45OTV2LTYuMDI4TDkgMTcuNjE2eiIvPjxwYXRoIGZpbGwtb3BhY2l0eT0iLjIiIGQ9Ik0xNi40OTggMjAuNTczbDcuNDk3LTQuMzUzLTcuNDk3LTMuMzQ4eiIvPjxwYXRoIGZpbGwtb3BhY2l0eT0iLjYwMiIgZD0iTTkgMTYuMjJsNy40OTggNC4zNTN2LTcuNzAxeiIvPjwvZz48L2c+PC9zdmc+',
+ADA:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+PGRlZnM+PGZpbHRlciB4PSItNy41JSIgeT0iLTYlIiB3aWR0aD0iMTE1LjUlIiBoZWlnaHQ9IjExNy4yJSIgZmlsdGVyVW5pdHM9Im9iamVjdEJvdW5kaW5nQm94IiBpZD0iYSI+PGZlT2Zmc2V0IGR5PSIuNSIgaW49IlNvdXJjZUFscGhhIiByZXN1bHQ9InNoYWRvd09mZnNldE91dGVyMSIvPjxmZUdhdXNzaWFuQmx1ciBzdGREZXZpYXRpb249Ii41IiBpbj0ic2hhZG93T2Zmc2V0T3V0ZXIxIiByZXN1bHQ9InNoYWRvd0JsdXJPdXRlcjEiLz48ZmVDb2xvck1hdHJpeCB2YWx1ZXM9IjAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAgMCAwIDAuMjA0MjU3MjQ2IDAiIGluPSJzaGFkb3dCbHVyT3V0ZXIxIi8+PC9maWx0ZXI+PHBhdGggZD0iTTE1LjcyNSA2LjA2Yy40NzktLjI0NyAxLjA2NC4zMjQuODEuNzk1LS4xNDkuMzg0LS43MS40ODYtLjk5Ni4xOTMtLjMwMy0uMjgtLjIwNC0uODM2LjE4Ni0uOTg5em0tNS4xNTUuNTQ2Yy4yOTEtLjExOC42Ni4xNDQuNjMuNDU3LjAzLjMzOC0uMzkuNTg4LS42ODcuNDI3LS4zOTMtLjE1LS4zNDgtLjc3OC4wNTctLjg4NHptMTAuNTU4Ljg5M2MtLjQ1NS0uMDU0LS41MjctLjc1OC0uMDktLjkuMzQtLjE2Mi42NTIuMTQzLjcwMi40Ni0uMDcyLjI3LS4zMDIuNTE4LS42MTIuNDR6bS05LjM4NSAxLjI2NWMuNDg3LS4zMDMgMS4xODEuMTQ4IDEuMTA2LjcwNS0uMDI1LjU2MS0uNzgzLjg4Ny0xLjIxMS41MDctLjQxNC0uMjk4LS4zNTEtLjk4Mi4xMDUtMS4yMTJ6bTcuNDMuMzIyYy4yMTctLjU1IDEuMDk3LS41NjggMS4zNDQtLjAzMi4yNDUuNDE3LS4wNTYuOTM0LS40OTEgMS4wNzYtLjU3Ny4xMDYtMS4xMjQtLjUwOC0uODUzLTEuMDQ0em0tNC4wNjkgMS4wMTNjLS4wMDUtLjQ3NC40MzMtLjgyNi44OS0uODU5LjMwNC4wNi42MzQuMTg3Ljc2NC40ODguMjQzLjQxNi4wMjcuOTg3LS40MSAxLjE3OC0uMi4xMS0uNDM4LjA2OS0uNjU2LjA1Ni0uMzMzLS4xNi0uNjE0LS40NzctLjU4OC0uODYzem0tNy42NjYuNjljLjQ0NS0uMjcgMS4wNDUuMjIuODc2LjY5Ni0uMDkyLjQxMS0uNjU0LjU3OC0uOTc1LjMxNi0uMzQzLS4yNDYtLjI4OS0uODM3LjEtMS4wMTN6bTE2LjQ2Mi0uMDAyYy4zNzctLjI4OCAxIC4wNDMuOTU0LjUxMS4wMjYuNDI3LS41MTMuNzUtLjg4Ny41My0uNDEyLS4xODMtLjQ1NS0uODA3LS4wNjctMS4wNHptLTYuNjQuODUxYy42MjItLjIyIDEuMzYyLjA0MyAxLjcxNi41OS40NjguNjY3LjIyIDEuNjgzLS41MDcgMi4wNjYtLjc1Mi40NTMtMS44NTEuMDctMi4xMy0uNzU4LS4zMTUtLjc0LjE0NS0xLjY2Ni45Mi0xLjg5OHptLTMuNjUzLjA3M2MuNjktLjMyIDEuNjE5LS4wNTIgMS45NTIuNjQyLjM5Mi42NzYuMDg5IDEuNjE3LS42MTIgMS45NjYtLjcwMi4zOTMtMS42OTMuMDk1LTIuMDMyLS42My0uMzgxLS43MDItLjA0My0xLjY1NS42OTItMS45Nzh6TTkuOTUgMTIuOTRjLjA1My0uNDM3LjQ3Mi0uNzIyLjg5NS0uNzUyYS45OC45OCAwIDAxLjg3Ljg1N2MtLjAzLjQ1LS4zODMuODg4LS44NjcuODg2LS41MzMuMDQ1LTEtLjQ3Ny0uODk4LS45OTF6bTEwLjgwMi0uNjU2Yy41NDctLjMxMyAxLjMwNi4xNDIgMS4yODIuNzYuMDM3LjY1NS0uODAzIDEuMTE2LTEuMzQ3LjczMi0uNTY2LS4zMi0uNTIyLTEuMjIuMDY1LTEuNDkyem0tOC42MyAyLjMwN2MuNjM4LS4xNzMgMS4zNy4xMjMgMS42ODMuNzAxLjM0My41ODIuMjAzIDEuMzktLjMzIDEuODE4LS42ODUuNjI2LTEuOTQ2LjM3NC0yLjMxLS40OC0uNDE5LS43ODMuMDktMS44MzMuOTU2LTIuMDR6bTYuOTI3LS4wMDNjLjYyMS0uMTc1IDEuMzUxLjA2IDEuNjg1LjYxNy40NDIuNjM3LjIzMSAxLjU4OC0uNDI2IDEuOTk4LS42OS40NzctMS43NTYuMjI3LTIuMTM2LS41MTktLjQ2LS43NzEuMDAzLTEuODYxLjg3Ny0yLjA5NnptLTExLjA0LjcyNmMuNTUyLS4yMDUgMS4xNjQuMzk0Ljk0LjkzMy0uMTM2LjQ5LS44MzkuNjcyLTEuMjAyLjMxLS40MjUtLjM0LS4yNjgtMS4wOTUuMjYyLTEuMjQzem0xNC45NjkuNzgyYS44MzYuODM2IDAgMDEuNzg4LS44NzRjLjM3OC4wNi43NDYuMzYuNzE2Ljc2NS4wMzUuNTM1LS42Mi44OTgtMS4wODQuNjQ3LS4yMTctLjEwOS0uMzI4LS4zMjgtLjQyLS41Mzh6TTUuMjk0IDE1LjU4Yy4zMzItLjE0My43NDMuMTQuNjY3LjUwMy0uMDE4LjQxMS0uNjM1LjU3LS44NjEuMjI2LS4yLS4yMzktLjA4LS42MDYuMTk0LS43M3ptMjAuOTQ5LS4wMDljLjIzNC0uMTYzLjYxLS4wNDYuNzAyLjIyMy4xNTcuMjk0LS4xMzEuNjk2LS40NjcuNjQ3LS40NzIuMDQyLS42MjQtLjY2NS0uMjM1LS44N3ptLTEyLjMxNyAxLjk3M2MuODc0LS4yMjMgMS44MTQuNDk0IDEuODIgMS4zOC4wNTYuODk1LS44NyAxLjY4OC0xLjc2NCAxLjQ4Mi0uNjkyLS4xMS0xLjIzNS0uNzY2LTEuMjEyLTEuNDUzLS4wMDItLjY1OC41MDItMS4yNyAxLjE1Ni0xLjQwOXptMy40NjItLjAwMWMuODg3LS4yNDQgMS44NTUuNDg2IDEuODQxIDEuMzkyLjA0Ny44NzgtLjg1IDEuNjQ1LTEuNzI2IDEuNDctLjgyNS0uMTA0LTEuNDMzLS45OTUtMS4yMDMtMS43ODMuMTE2LS41MjQuNTYyLS45NSAxLjA4OC0xLjA4em0tNi42NzYuNTQ1Yy42MTQtLjEwMyAxLjE5LjU3Ljk0MSAxLjE0NC0uMTgyLjYxMi0xLjA4Ni43NzctMS40ODYuMjc4LS40NjgtLjQ4LS4xMTgtMS4zNTYuNTQ1LTEuNDIyem0xMC4xNTQuMDI3Yy41NDgtLjIyNiAxLjIyLjI0IDEuMTc4LjgyNS4wMjIuNjQzLS44MDggMS4wODctMS4zNDMuNzExLS42MDctLjMzNy0uNDk2LTEuMzMuMTY1LTEuNTM2em0yLjgzOCAyLjhjLS4yMTQtLjM5My4xNzUtLjkxNC42Mi0uODQxLjIyLS4wMDQuMzc1LjE2Ny41MTYuMzExLjAyOS4yMzMuMDc4LjUxMS0uMTE5LjY5LS4yNjcuMzMzLS44NzIuMjM4LTEuMDE3LS4xNnptLTE2LjI2OC0uNzMyYy40MTUtLjI3MSAxLjAxMi4xMzQuOTE4LjYxLS4wNS40MjMtLjU5LjY2NC0uOTQ1LjQyNC0uMzgyLS4yMTctLjM2OC0uODM2LjAyNy0xLjAzNHptOC4xOTMuODgzYy41NDMtLjIzNSAxLjIzNS4yMyAxLjE4My44MTguMDQuNjUtLjgxNSAxLjEtMS4zNDYuNzEtLjU5LS4zMzUtLjQ5MS0xLjMyMS4xNjMtMS41Mjh6bS0zLjc5NC44NzFjLjQ2Mi0uMjM5IDEuMDgyLjE3NCAxLjA0LjY4NC4wMTQuNDE4LS40Ljc3NC0uODIuNzEyLS4zNDctLjAwNy0uNTczLS4zMTQtLjY4NS0uNjA1LjAwNi0uMzE3LjEzOS0uNjcuNDY1LS43OXptNy42ODYuMDA4Yy40NzYtLjI5IDEuMTUyLjEyNiAxLjEwNy42Ny4wMTIuNTctLjc1Mi45MzQtMS4xOTUuNTYtLjQyOC0uMjkzLS4zNzYtLjk5Ny4wODgtMS4yM3ptMS4zMzcgMy4yNWMtLjIxMi0uMzE0LjAzNy0uNjkzLjM4LS43NjUuMjc3LjA1NS41Ny4yNi41MTEuNTc0LS4wNC40MjctLjY3NC41NTctLjg5MS4xOTJ6bS0xMC42MTEtLjI3M2MuMDg0LS4yNS4yODgtLjQ5Ny41ODctLjQzMi40MzUuMDMuNTY0LjY3Ni4xODMuODc1LS4zNDIuMjI3LS43NC0uMDg0LS43Ny0uNDQzem01LjEyLjI4N2MuMDgzLS4zNy41NjgtLjU0OS44ODgtLjM1My4yMTIuMDkuMjc0LjMyMi4zMjguNTJhOC44MjIgOC44MjIgMCAwMC0uMDguMzFjLS4xMzEuMTUyLS4zLjMwNS0uNTE4LjMtLjQwNS4wNDctLjc3MS0uNDA0LS42MTktLjc3N3oiIGlkPSJiIi8+PC9kZWZzPjxnIGZpbGw9Im5vbmUiPjxjaXJjbGUgY3g9IjE2IiBjeT0iMTYiIHI9IjE2IiBmaWxsPSIjMEQxRTMwIi8+PHVzZSBmaWxsPSIjMDAwIiBmaWx0ZXI9InVybCgjYSkiIHhsaW5rOmhyZWY9IiNiIi8+PHVzZSBmaWxsPSIjRkZGIiB4bGluazpocmVmPSIjYiIvPjwvZz48L3N2Zz4=',
+SOL:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGZpbGw9IiM2NkY5QTEiIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIvPjxwYXRoIGQ9Ik05LjkyNSAxOS42ODdhLjU5LjU5IDAgMDEuNDE1LS4xN2gxNC4zNjZhLjI5LjI5IDAgMDEuMjA3LjQ5N2wtMi44MzggMi44MTVhLjU5LjU5IDAgMDEtLjQxNS4xNzFINy4yOTRhLjI5MS4yOTEgMCAwMS0uMjA3LS40OThsMi44MzgtMi44MTV6bTAtMTAuNTE3QS41OS41OSAwIDAxMTAuMzQgOWgxNC4zNjZjLjI2MSAwIC4zOTIuMzE0LjIwNy40OThsLTIuODM4IDIuODE1YS41OS41OSAwIDAxLS40MTUuMTdINy4yOTRhLjI5MS4yOTEgMCAwMS0uMjA3LS40OTdMOS45MjUgOS4xN3ptMTIuMTUgNS4yMjVhLjU5LjU5IDAgMDAtLjQxNS0uMTdINy4yOTRhLjI5MS4yOTEgMCAwMC0uMjA3LjQ5OGwyLjgzOCAyLjgxNWMuMTEuMTA5LjI2LjE3LjQxNS4xN2gxNC4zNjZhLjI5MS4yOTEgMCAwMC4yMDctLjQ5OGwtMi44MzgtMi44MTV6IiBmaWxsPSIjRkZGIi8+PC9nPjwvc3ZnPg==',
+XRP:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzIzMjkyRiIvPjxwYXRoIGQ9Ik0yMy4wNyA4aDIuODlsLTYuMDE1IDUuOTU3YTUuNjIxIDUuNjIxIDAgMDEtNy44OSAwTDYuMDM1IDhIOC45M2w0LjU3IDQuNTIzYTMuNTU2IDMuNTU2IDAgMDA0Ljk5NiAwTDIzLjA3IDh6TTguODk1IDI0LjU2M0g2bDYuMDU1LTUuOTkzYTUuNjIxIDUuNjIxIDAgMDE3Ljg5IDBMMjYgMjQuNTYyaC0yLjg5NUwxOC41IDIwYTMuNTU2IDMuNTU2IDAgMDAtNC45OTYgMGwtNC42MSA0LjU2M3oiIGZpbGw9IiNGRkYiLz48L2c+PC9zdmc+',
+BNB:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGcgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiNGM0JBMkYiLz48cGF0aCBmaWxsPSIjRkZGIiBkPSJNMTIuMTE2IDE0LjQwNEwxNiAxMC41MmwzLjg4NiAzLjg4NiAyLjI2LTIuMjZMMTYgNmwtNi4xNDQgNi4xNDQgMi4yNiAyLjI2ek02IDE2bDIuMjYtMi4yNkwxMC41MiAxNmwtMi4yNiAyLjI2TDYgMTZ6bTYuMTE2IDEuNTk2TDE2IDIxLjQ4bDMuODg2LTMuODg2IDIuMjYgMi4yNTlMMTYgMjZsLTYuMTQ0LTYuMTQ0LS4wMDMtLjAwMyAyLjI2My0yLjI1N3pNMjEuNDggMTZsMi4yNi0yLjI2TDI2IDE2bC0yLjI2IDIuMjZMMjEuNDggMTZ6bS0zLjE4OC0uMDAyaC4wMDJWMTZMMTYgMTguMjk0bC0yLjI5MS0yLjI5LS4wMDQtLjAwNC4wMDQtLjAwMy40MDEtLjQwMi4xOTUtLjE5NUwxNiAxMy43MDZsMi4yOTMgMi4yOTN6Ii8+PC9nPjwvc3ZnPg==',
+DOGE:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iI0MzQTYzNCIvPjxwYXRoIGZpbGw9IiNGRkYiIGQ9Ik0xMy4yNDggMTQuNjFoNC4zMTR2Mi4yODZoLTQuMzE0djQuODE4aDIuNzIxYzEuMDc3IDAgMS45NTgtLjE0NSAyLjY0NC0uNDM3LjY4Ni0uMjkxIDEuMjI0LS42OTQgMS42MTUtMS4yMWE0LjQgNC40IDAgMDAuNzk2LTEuODE1IDExLjQgMTEuNCAwIDAwLjIxLTIuMjUyIDExLjQgMTEuNCAwIDAwLS4yMS0yLjI1MiA0LjM5NiA0LjM5NiAwIDAwLS43OTYtMS44MTVjLS4zOTEtLjUxNi0uOTMtLjkxOS0xLjYxNS0xLjIxLS42ODYtLjI5Mi0xLjU2Ny0uNDM3LTIuNjQ0LS40MzdoLTIuNzIxdjQuMzI1em0tMi43NjYgMi4yODZIOXYtMi4yODVoMS40ODJWOGg2LjU0OWMxLjIxIDAgMi4yNTcuMjEgMy4xNDIuNjI3Ljg4NS40MTkgMS42MDcuOTkgMi4xNjggMS43MTUuNTYuNzI0Ljk3NyAxLjU3MiAxLjI1IDIuNTQzLjI3My45NzEuNDA5IDIuMDEuNDA5IDMuMTE1YTExLjQ3IDExLjQ3IDAgMDEtLjQxIDMuMTE1Yy0uMjcyLjk3LS42ODkgMS44MTktMS4yNSAyLjU0My0uNTYuNzI1LTEuMjgyIDEuMjk2LTIuMTY3IDEuNzE1LS44ODUuNDE4LTEuOTMzLjYyNy0zLjE0Mi42MjdoLTYuNTQ5di03LjEwNHoiLz48L2c+PC9zdmc+',
+DOT:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGZpbGw9IiNFNjAwN0EiIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIvPjxwYXRoIGQ9Ik0xNi4yNzIgNi42MjVjLTMuNzA3IDAtNi43MzYgMy4wMTItNi43MzYgNi43MzYgMCAuNzQ5LjEyNCAxLjQ4LjM1NiAyLjE5MmEuOTUuOTUgMCAwMDEuMTk0LjU4OS45NS45NSAwIDAwLjU4OC0xLjE5NCA0Ljc0NSA0Ljc0NSAwIDAxLS4yNjctMS43M2MuMDcxLTIuNTEyIDIuMTAzLTQuNTggNC42MTYtNC43MDRhNC44NiA0Ljg2IDAgMDE1LjExNSA0Ljg0NyA0Ljg2MiA0Ljg2MiAwIDAxLTQuNTggNC44NDhzLS45NDUuMDUzLTEuNDA4LjEyNWMtLjIzMi4wMzUtLjQxLjA3MS0uNTM1LjA4OS0uMDU0LjAxOC0uMTA3LS4wMzYtLjA5LS4wOWwuMTYxLS43ODMuODczLTQuMDI4YS45MzQuOTM0IDAgMDAtLjcxMi0xLjEwNS45MzQuOTM0IDAgMDAtMS4xMDUuNzEzcy0yLjEwMyA5LjgwMi0yLjEyMSA5LjkwOWEuOTM0LjkzNCAwIDAwLjcxMyAxLjEwNS45MzQuOTM0IDAgMDAxLjEwNS0uNzEzYy4wMTctLjEwNy4zMDMtMS40MDguMzAzLTEuNDA4YTIuMzY3IDIuMzY3IDAgMDExLjk5Ni0xLjg1NCAyMS40MyAyMS40MyAwIDAxMS4wNTEtLjA4OSA2Ljc0NCA2Ljc0NCAwIDAwNi4yMi02LjcxOWMwLTMuNzI0LTMuMDMtNi43MzYtNi43MzctNi43MzZ6bS40ODEgMTUuNTA1YTEuMTIyIDEuMTIyIDAgMDAtMS4zMzYuODczYy0uMTI1LjYwNi4yNSAxLjIxMi44NzMgMS4zMzdhMS4xMjIgMS4xMjIgMCAwMDEuMzM3LS44NzRjLjEyNC0uNjIzLS4yNS0xLjIxMi0uODc0LTEuMzM2eiIgZmlsbD0iI0ZGRiIvPjwvZz48L3N2Zz4=',
+AVAX:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxjaXJjbGUgZmlsbD0iI0U4NDE0MiIgZmlsbC1ydWxlPSJub256ZXJvIiBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiLz48cGF0aCBkPSJNMTEuNTE4IDIyLjc1SDguNDljLS42MzYgMC0uOTUgMC0xLjE0Mi0uMTIzQS43Ny43NyAwIDAxNyAyMi4wMjVjLS4wMTItLjIyNi4xNDUtLjUwMy40Ni0xLjA1NWw3LjQ3Mi0xMy4xOTNjLjMxOC0uNTYuNDgtLjg0LjY4Mi0uOTQ0YS43Ny43NyAwIDAxLjY5OCAwYy4yMDMuMTA0LjM2NC4zODQuNjgyLjk0NGwxLjUzNiAyLjY4Ni4wMDguMDE0Yy4zNDMuNi41MTcuOTA2LjU5MyAxLjIyNmEyLjI2IDIuMjYgMCAwMTAgMS4wNjZjLS4wNzYuMzIzLS4yNDkuNjMtLjU5NyAxLjI0bC0zLjkyNiA2Ljk1LS4wMS4wMTdjLS4zNDYuNjA2LS41Mi45MTMtLjc2NCAxLjE0NWEyLjI4NCAyLjI4NCAwIDAxLS45My41NGMtLjMxOS4wODktLjY3NS4wODktMS4zODcuMDg5em03LjY0MyAwaDQuMzM2Yy42NCAwIC45NjIgMCAxLjE1NC0uMTI2YS43NjguNzY4IDAgMDAuMzQ4LS42MDdjLjAxMS0uMjE5LS4xNDItLjQ4NC0uNDQzLTEuMDA1bC0uMDMyLS4wNTQtMi4xNzItMy43MjItLjAyNS0uMDQyYy0uMzA1LS41MTctLjQ2LS43NzgtLjY1Ny0uODc5YS43NjIuNzYyIDAgMDAtLjY5MyAwYy0uMi4xMDQtLjM2LjM3Ny0uNjc4LjkyNWwtMi4xNjUgMy43MjItLjAwNy4wMTNjLS4zMTcuNTQ4LS40NzYuODIxLS40NjQgMS4wNDZhLjc3Ny43NzcgMCAwMC4zNDguNjA2Yy4xODguMTIzLjUxLjEyMyAxLjE1LjEyM3oiIGZpbGw9IiNGRkYiLz48L2c+PC9zdmc+',
+LINK:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGZpbGw9IiMyQTVBREEiIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIvPjxwYXRoIGQ9Ik0xNiA2bC0xLjc5OSAxLjA1NUw5LjMgOS45NDUgNy41IDExdjEwbDEuNzk5IDEuMDU1IDQuOTQ3IDIuODlMMTYuMDQ1IDI2bDEuNzk5LTEuMDU1IDQuODU3LTIuODlMMjQuNSAyMVYxMWwtMS43OTktMS4wNTUtNC45MDItMi44OUwxNiA2em0tNC45MDIgMTIuODl2LTUuNzhMMTYgMTAuMjJsNC45MDIgMi44OXY1Ljc4TDE2IDIxLjc4bC00LjkwMi0yLjg5eiIgZmlsbD0iI0ZGRiIvPjwvZz48L3N2Zz4=',
+MATIC:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGZpbGw9IiM2RjQxRDgiIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIvPjxwYXRoIGQ9Ik0yMS4wOTIgMTIuNjkzYy0uMzY5LS4yMTUtLjg0OC0uMjE1LTEuMjU0IDBsLTIuODc5IDEuNjU0LTEuOTU1IDEuMDc4LTIuODc5IDEuNjUzYy0uMzY5LjIxNi0uODQ4LjIxNi0xLjI1NCAwbC0yLjI4OC0xLjI5NGMtLjM2OS0uMjE1LS42MjctLjYxLS42MjctMS4wNDJWMTIuMTljMC0uNDMxLjIyMS0uODI2LjYyNy0xLjA0MmwyLjI1LTEuMjU4Yy4zNy0uMjE2Ljg1LS4yMTYgMS4yNTYgMGwyLjI1IDEuMjU4Yy4zNy4yMTYuNjI4LjYxMS42MjggMS4wNDJ2MS42NTRsMS45NTUtMS4xMTV2LTEuNjUzYTEuMTYgMS4xNiAwIDAwLS42MjctMS4wNDJsLTQuMTctMi4zNzJjLS4zNjktLjIxNi0uODQ4LS4yMTYtMS4yNTQgMGwtNC4yNDQgMi4zNzJBMS4xNiAxLjE2IDAgMDA2IDExLjA3NnY0Ljc4YzAgLjQzMi4yMjEuODI3LjYyNyAxLjA0M2w0LjI0NCAyLjM3MmMuMzY5LjIxNS44NDkuMjE1IDEuMjU0IDBsMi44NzktMS42MTggMS45NTUtMS4xMTQgMi44NzktMS42MTdjLjM2OS0uMjE2Ljg0OC0uMjE2IDEuMjU0IDBsMi4yNTEgMS4yNThjLjM3LjIxNS42MjcuNjEuNjI3IDEuMDQydjIuNTUyYzAgLjQzMS0uMjIuODI2LS42MjcgMS4wNDJsLTIuMjUgMS4yOTRjLS4zNy4yMTYtLjg1LjIxNi0xLjI1NSAwbC0yLjI1MS0xLjI1OGMtLjM3LS4yMTYtLjYyOC0uNjExLS42MjgtMS4wNDJ2LTEuNjU0bC0xLjk1NSAxLjExNXYxLjY1M2MwIC40MzEuMjIxLjgyNy42MjcgMS4wNDJsNC4yNDQgMi4zNzJjLjM2OS4yMTYuODQ4LjIxNiAxLjI1NCAwbDQuMjQ0LTIuMzcyYy4zNjktLjIxNS42MjctLjYxLjYyNy0xLjA0MnYtNC43OGExLjE2IDEuMTYgMCAwMC0uNjI3LTEuMDQybC00LjI4LTIuNDA5eiIgZmlsbD0iI0ZGRiIvPjwvZz48L3N2Zz4=',
+LTC:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxjaXJjbGUgY3g9IjE2IiBjeT0iMTYiIHI9IjE2IiBmaWxsPSIjQkZCQkJCIi8+PHBhdGggZmlsbD0iI0ZGRiIgZD0iTTEwLjQyNyAxOS4yMTRMOSAxOS43NjhsLjY4OC0yLjc1OSAxLjQ0NC0uNThMMTMuMjEzIDhoNS4xMjlsLTEuNTE5IDYuMTk2IDEuNDEtLjU3MS0uNjggMi43NS0xLjQyNy41NzEtLjg0OCAzLjQ4M0gyM0wyMi4xMjcgMjRIOS4yNTJ6Ii8+PC9nPjwvc3ZnPg==',
+USDT:'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzI2QTE3QiIvPjxwYXRoIGZpbGw9IiNGRkYiIGQ9Ik0xNy45MjIgMTcuMzgzdi0uMDAyYy0uMTEuMDA4LS42NzcuMDQyLTEuOTQyLjA0Mi0xLjAxIDAtMS43MjEtLjAzLTEuOTcxLS4wNDJ2LjAwM2MtMy44ODgtLjE3MS02Ljc5LS44NDgtNi43OS0xLjY1OCAwLS44MDkgMi45MDItMS40ODYgNi43OS0xLjY2djIuNjQ0Yy4yNTQuMDE4Ljk4Mi4wNjEgMS45ODguMDYxIDEuMjA3IDAgMS44MTItLjA1IDEuOTI1LS4wNnYtMi42NDNjMy44OC4xNzMgNi43NzUuODUgNi43NzUgMS42NTggMCAuODEtMi44OTUgMS40ODUtNi43NzUgMS42NTdtMC0zLjU5di0yLjM2Nmg1LjQxNFY3LjgxOUg4LjU5NXYzLjYwOGg1LjQxNHYyLjM2NWMtNC40LjIwMi03LjcwOSAxLjA3NC03LjcwOSAyLjExOCAwIDEuMDQ0IDMuMzA5IDEuOTE1IDcuNzA5IDIuMTE4djcuNTgyaDMuOTEzdi03LjU4NGM0LjM5My0uMjAyIDcuNjk0LTEuMDczIDcuNjk0LTIuMTE2IDAtMS4wNDMtMy4zMDEtMS45MTQtNy42OTQtMi4xMTciLz48L2c+PC9zdmc+',
+USDC:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGZpbGw9IiMzRTczQzQiIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIvPjxnIGZpbGw9IiNGRkYiPjxwYXRoIGQ9Ik0yMC4wMjIgMTguMTI0YzAtMi4xMjQtMS4yOC0yLjg1Mi0zLjg0LTMuMTU2LTEuODI4LS4yNDMtMi4xOTMtLjcyOC0yLjE5My0xLjU3OCAwLS44NS42MS0xLjM5NiAxLjgyOC0xLjM5NiAxLjA5NyAwIDEuNzA3LjM2NCAyLjAxMSAxLjI3NWEuNDU4LjQ1OCAwIDAwLjQyNy4zMDNoLjk3NWEuNDE2LjQxNiAwIDAwLjQyNy0uNDI1di0uMDZhMy4wNCAzLjA0IDAgMDAtMi43NDMtMi40ODlWOS4xNDJjMC0uMjQzLS4xODMtLjQyNS0uNDg3LS40ODZoLS45MTVjLS4yNDMgMC0uNDI2LjE4Mi0uNDg3LjQ4NnYxLjM5NmMtMS44MjkuMjQyLTIuOTg2IDEuNDU2LTIuOTg2IDIuOTc0IDAgMi4wMDIgMS4yMTggMi43OTEgMy43NzggMy4wOTUgMS43MDcuMzAzIDIuMjU1LjY2OCAyLjI1NSAxLjYzOSAwIC45Ny0uODUzIDEuNjM4LTIuMDExIDEuNjM4LTEuNTg1IDAtMi4xMzMtLjY2Ny0yLjMxNi0xLjU3OC0uMDYtLjI0Mi0uMjQ0LS4zNjQtLjQyNy0uMzY0aC0xLjAzNmEuNDE2LjQxNiAwIDAwLS40MjYuNDI1di4wNmMuMjQzIDEuNTE4IDEuMjE5IDIuNjEgMy4yMyAyLjkxNHYxLjQ1N2MwIC4yNDIuMTgzLjQyNS40ODcuNDg1aC45MTVjLjI0MyAwIC40MjYtLjE4Mi40ODctLjQ4NVYyMS4zNGMxLjgyOS0uMzAzIDMuMDQ3LTEuNTc4IDMuMDQ3LTMuMjE3eiIvPjxwYXRoIGQ9Ik0xMi44OTIgMjQuNDk3Yy00Ljc1NC0xLjctNy4xOTItNi45OC01LjQyNC0xMS42NTMuOTE0LTIuNTUgMi45MjUtNC40OTEgNS40MjQtNS40MDIuMjQ0LS4xMjEuMzY1LS4zMDMuMzY1LS42MDd2LS44NWMwLS4yNDItLjEyMS0uNDI0LS4zNjUtLjQ4NS0uMDYxIDAtLjE4MyAwLS4yNDQuMDZhMTAuODk1IDEwLjg5NSAwIDAwLTcuMTMgMTMuNzE3YzEuMDk2IDMuNCAzLjcxNyA2LjAxIDcuMTMgNy4xMDIuMjQ0LjEyMS40ODggMCAuNTQ4LS4yNDMuMDYxLS4wNi4wNjEtLjEyMi4wNjEtLjI0M3YtLjg1YzAtLjE4Mi0uMTgyLS40MjQtLjM2NS0uNTQ2em02LjQ2LTE4LjkzNmMtLjI0NC0uMTIyLS40ODggMC0uNTQ4LjI0Mi0uMDYxLjA2MS0uMDYxLjEyMi0uMDYxLjI0M3YuODVjMCAuMjQzLjE4Mi40ODUuMzY1LjYwNyA0Ljc1NCAxLjcgNy4xOTIgNi45OCA1LjQyNCAxMS42NTMtLjkxNCAyLjU1LTIuOTI1IDQuNDkxLTUuNDI0IDUuNDAyLS4yNDQuMTIxLS4zNjUuMzAzLS4zNjUuNjA3di44NWMwIC4yNDIuMTIxLjQyNC4zNjUuNDg1LjA2MSAwIC4xODMgMCAuMjQ0LS4wNmExMC44OTUgMTAuODk1IDAgMDA3LjEzLTEzLjcxN2MtMS4wOTYtMy40Ni0zLjc3OC02LjA3LTcuMTMtNy4xNjJ6Ii8+PC9nPjwvZz48L3N2Zz4=',
+TRX:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGZpbGw9IiNFRjAwMjciIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIvPjxwYXRoIGQ9Ik0yMS45MzIgOS45MTNMNy41IDcuMjU3bDcuNTk1IDE5LjExMiAxMC41ODMtMTIuODk0LTMuNzQ2LTMuNTYyem0tLjIzMiAxLjE3bDIuMjA4IDIuMDk5LTYuMDM4IDEuMDkzIDMuODMtMy4xOTJ6bS01LjE0MiAyLjk3M2wtNi4zNjQtNS4yNzggMTAuNDAyIDEuOTE0LTQuMDM4IDMuMzY0em0tLjQ1My45MzRsLTEuMDM4IDguNThMOS40NzIgOS40ODdsNi42MzMgNS41MDJ6bS45Ni40NTVsNi42ODctMS4yMS03LjY3IDkuMzQzLjk4My04LjEzM3oiIGZpbGw9IiNGRkYiLz48L2c+PC9zdmc+',
+ATOM:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzJFMzE0OCIvPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKDYgNSkiIGZpbGw9IiNGRkYiPjxwYXRoIGQ9Ik0xMC4wMi41M2MtMS4yOTUgMC0yLjM0NSA0LjY5Ny0yLjM0NSAxMC40OXMxLjA1IDEwLjQ5IDIuMzQ1IDEwLjQ5YzEuMjk0IDAgMi4zNDQtNC42OTcgMi4zNDQtMTAuNDlTMTEuMzE0LjUzIDEwLjAyLjUzem0uMTYyIDIwLjM4N2MtLjE0OC4xOTgtLjI5Ny4wNS0uMjk3LjA1LS41OTYtLjY5Mi0uODk0LTEuOTc1LS44OTQtMS45NzUtMS4wNDMtMy4zNTctLjc5NS0xMC41NjQtLjc5NS0xMC41NjQuNDktNS43MjEgMS4zODItNy4wNzMgMS42ODUtNy4zNzNhLjE4NS4xODUgMCAwMS4yMzgtLjAxOWMuNDQuMzEzLjgxIDEuNjE3LjgxIDEuNjE3IDEuMDkgNC4wNDguOTkxIDcuODQ4Ljk5MSA3Ljg0OC4wOTkgMy4zMDgtLjU0NiA3LjAxLS41NDYgNy4wMS0uNDk3IDIuODE0LTEuMTkyIDMuNDA2LTEuMTkyIDMuNDA2eiIvPjxwYXRoIGQ9Ik0xOS4xMTggNS44Yy0uNjQ1LTEuMTI0LTUuMjQuMzAzLTEwLjI2NyAzLjE4Ni01LjAyNyAyLjg4My04LjU3MyA2LjEzLTcuOTMgNy4yNTQuNjQ1IDEuMTI0IDUuMjQxLS4zMDMgMTAuMjY4LTMuMTg2IDUuMDI3LTIuODgzIDguNTc0LTYuMTMxIDcuOTMtNy4yNTR6TTEuNTE1IDE2LjA4NWMtLjI0Ni0uMDMtLjE5LS4yMzQtLjE5LS4yMzQuMzAyLS44NiAxLjI2Ni0xLjc1OCAxLjI2Ni0xLjc1OCAyLjM5My0yLjU3NSA4Ljc2OS01Ljk0NiA4Ljc2OS01Ljk0NiA1LjIwNi0yLjQyMiA2LjgyMy0yLjMyIDcuMjMzLTIuMjA4YS4xODUuMTg1IDAgMDEuMTM1LjE5OGMtLjA1LjUzNy0xIDEuNTA3LTEgMS41MDctMi45NjYgMi45NjEtNi4zMTIgNC43NjgtNi4zMTIgNC43NjgtMi44MiAxLjczMi02LjM1MyAzLjAxMy02LjM1MyAzLjAxMy0yLjY4OC45NjgtMy41NDguNjYtMy41NDguNjZ6Ii8+PHBhdGggZD0iTTE5LjA5NSAxNi4yNzdjLjY1LTEuMTItMi44ODctNC4zODMtNy44OTgtNy4yODhDNi4xODcgNi4wODUgMS41OTMgNC42NDEuOTQ0IDUuNzYzYy0uNjUgMS4xMjMgMi44ODggNC4zODMgNy45IDcuMjg4IDUuMDEzIDIuOTA0IDkuNjAyIDQuMzQ4IDEwLjI1MSAzLjIyNnpNMS4zNzUgNi4xOTZjLS4wOTctLjIyOC4xMDYtLjI4My4xMDYtLjI4My44OTctLjE3IDIuMTU3LjIxNyAyLjE1Ny4yMTcgMy40MjcuNzggOS41MzggNC42MDggOS41MzggNC42MDggNC43MDUgMy4yOTIgNS40MjcgNC43NDMgNS41MzUgNS4xNTRhLjE4NS4xODUgMCAwMS0uMTAzLjIxNWMtLjQ5LjIyNS0xLjgwNS0uMTEtMS44MDUtLjExLTQuMDUtMS4wODYtNy4yODktMy4wNzUtNy4yODktMy4wNzUtMi45MS0xLjU3LTUuNzg4LTMuOTg1LTUuNzg4LTMuOTg1LTIuMTg3LTEuODQyLTIuMzUtMi43NC0yLjM1LTIuNzRsLS4wMDItLjAwMXoiLz48Y2lyY2xlIGN4PSI5Ljk5NSIgY3k9IjEwLjk5NSIgcj0iMS4yMzQiLz48Y2lyY2xlIGN4PSIxNS4wNTUiIGN5PSI2LjI1NiIgcj0iMSIvPjxjaXJjbGUgY3g9IjMuMzA2IiBjeT0iOC43NzQiIHI9IjEiLz48Y2lyY2xlIGN4PSI4LjUzOSIgY3k9IjE3Ljg1NiIgcj0iMSIvPjwvZz48L2c+PC9zdmc+',
+UNI:'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxjaXJjbGUgZmlsbD0iI0ZGMDA3QSIgZmlsbC1ydWxlPSJub256ZXJvIiBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiLz48ZyBmaWxsPSIjRkZGIj48cGF0aCBkPSJNMTIuMjYxIDUuNzY3Yy0uMjg1LS4wNDQtLjI5Ny0uMDUtLjE2My0uMDcuMjU3LS4wNC44NjUuMDE1IDEuMjg0LjExNC45NzcuMjMzIDEuODY2LjgyOCAyLjgxNiAxLjg4NWwuMjUyLjI4LjM2LS4wNTdjMS41Mi0uMjQ1IDMuMDY3LS4wNSA0LjM2LjU0Ny4zNTYuMTY0LjkxNy40OTEuOTg3LjU3Ni4wMjMuMDI2LjA2NC4xOTkuMDkxLjM4My4wOTYuNjM3LjA0OCAxLjEyNS0uMTQ2IDEuNDktLjEwNi4xOTgtLjExMi4yNi0uMDQxLjQzYS40MTYuNDE2IDAgMDAuMzcyLjIzNmMuMzIyIDAgLjY2OC0uNTIuODI4LTEuMjQzbC4wNjQtLjI4Ny4xMjYuMTQzYy42OTIuNzg0IDEuMjM1IDEuODUzIDEuMzI4IDIuNjEzbC4wMjUuMTk5LS4xMTctLjE4Yy0uMi0uMzEtLjQtLjUyMi0uNjU4LS42OTMtLjQ2NC0uMzA3LS45NTUtLjQxMS0yLjI1NS0uNDgtMS4xNzQtLjA2Mi0xLjgzOS0uMTYyLTIuNDk3LS4zNzctMS4xMjEtLjM2NS0xLjY4Ni0uODUyLTMuMDE4LTIuNTk5LS41OTEtLjc3Ni0uOTU3LTEuMjA1LTEuMzItMS41NS0uODI3LS43ODYtMS42MzktMS4xOTgtMi42NzgtMS4zNnoiIGZpbGwtcnVsZT0ibm9uemVybyIvPjxwYXRoIGQ9Ik0yMi40MjIgNy41Yy4wMy0uNTIuMS0uODYzLjI0Mi0xLjE3Ni4wNTYtLjEyNC4xMDktLjIyNi4xMTctLjIyNmEuNzczLjc3MyAwIDAxLS4wNTUuMjA0Yy0uMTAzLjMwNC0uMTIuNzItLjA0OSAxLjIwMy4wOS42MTQuMTQyLjcwMi43OSAxLjM2NS4zMDUuMzExLjY1OS43MDMuNzg3Ljg3MmwuMjMzLjMwNi0uMjMzLS4yMTljLS4yODUtLjI2Ny0uOTQxLS43OS0xLjA4Ni0uODY0LS4wOTctLjA1LS4xMTItLjA0OS0uMTcyLjAxLS4wNTUuMDU2LS4wNjcuMTM4LS4wNzQuNTI5LS4wMTIuNjA4LS4wOTUgMS0uMjk2IDEuMzktLjEwOC4yMS0uMTI1LjE2Ni0uMDI3LS4wNzMuMDczLS4xNzguMDgtLjI1Ni4wOC0uODQ1IDAtMS4xODQtLjE0MS0xLjQ2OC0uOTY2LTEuOTU2YTkuMDQ2IDkuMDQ2IDAgMDAtLjc2NC0uMzk2IDIuOTE2IDIuOTE2IDAgMDEtLjM3NC0uMTgyYy4wMjMtLjAyMy44MjcuMjExIDEuMTUuMzM2LjQ4Mi4xODUuNTYxLjIwOS42Mi4xODYuMDM5LS4wMTUuMDU4LS4xMjkuMDc3LS40NjR6bS05LjYwNyAyLjAyNWMtLjU3OS0uNzk3LS45MzctMi4wMi0uODYtMi45MzRsLjAyNC0uMjgzLjEzMi4wMjRjLjI0OC4wNDUuNjc1LjIwNC44NzUuMzI2LjU0OC4zMzMuNzg2Ljc3MiAxLjAyNyAxLjg5OC4wNzEuMzMuMTY0LjcwMy4yMDcuODMuMDY4LjIwMy4zMjguNjc4LjU0Ljk4Ny4xNTIuMjIyLjA1LjMyNy0uMjg2LjI5Ny0uNTE0LS4wNDctMS4yMS0uNTI3LTEuNjU5LTEuMTQ1em04LjkwNSA1LjkzNWMtMi43MDctMS4wOS0zLjY2LTIuMDM2LTMuNjYtMy42MzIgMC0uMjM1LjAwOC0uNDI3LjAxNy0uNDI3LjAxIDAgLjExNS4wNzcuMjMzLjE3Mi41NDkuNDQgMS4xNjQuNjI4IDIuODY1Ljg3NiAxLjAwMS4xNDcgMS41NjUuMjY1IDIuMDg1LjQzNyAxLjY1Mi41NDggMi42NzQgMS42NiAyLjkxOCAzLjE3NC4wNy40NC4wMjkgMS4yNjUtLjA4NiAxLjctLjA5LjM0NC0uMzY3Ljk2My0uNDQuOTg3LS4wMi4wMDYtLjA0LS4wNzEtLjA0Ni0uMTc4LS4wMjgtLjU2OC0uMzE1LTEuMTIyLS43OTgtMS41MzctLjU0OS0uNDcxLTEuMjg2LS44NDctMy4wODktMS41NzJ6bS0xLjkuNDUyYTQuODA4IDQuODA4IDAgMDAtLjEzMS0uNTcybC0uMDctLjIwNi4xMjkuMTQ0Yy4xNzcuMi4zMTguNDU0LjQzNi43OTQuMDkxLjI1OS4xMDEuMzM2LjEuNzU3IDAgLjQxNC0uMDExLjUtLjA5NS43MzRhMi4zMiAyLjMyIDAgMDEtLjU3MS45MDhjLS40OTUuNTA0LTEuMTMuNzgyLTIuMDQ4Ljg5OC0uMTYuMDItLjYyNC4wNTQtMS4wMzMuMDc1LTEuMDMuMDU0LTEuNzA3LjE2NC0yLjMxNi4zNzhhLjQ4OC40ODggMCAwMS0uMTc0LjA0MmMtLjAyNC0uMDI1LjM5LS4yNzIuNzMzLS40MzcuNDgzLS4yMzMuOTYzLS4zNiAyLjA0LS41MzkuNTMyLS4wODkgMS4wODItLjE5NiAxLjIyMS0uMjM5IDEuMzE4LS40MDQgMS45OTUtMS40NDYgMS43NzgtMi43Mzd6IiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNMjEuMDYgMTguMTE2Yy0uMzYtLjc3My0uNDQyLTEuNTItLjI0NS0yLjIxNi4wMjEtLjA3NC4wNTUtLjEzNS4wNzUtLjEzNWEuNzMuNzMgMCAwMS4xODkuMTAyYy4xNjYuMTEyLjQ5OC4zIDEuMzgzLjc4MiAxLjEwNS42MDMgMS43MzUgMS4wNyAyLjE2NCAxLjYwMi4zNzUuNDY3LjYwNy45OTkuNzE5IDEuNjQ3LjA2My4zNjcuMDI2IDEuMjUtLjA2OCAxLjYyLS4yOTcgMS4xNjYtLjk4OCAyLjA4Mi0xLjk3MiAyLjYxNmEyLjUzIDIuNTMgMCAwMS0uMjg4LjE0M2MtLjAxNCAwIC4wMzgtLjEzMy4xMTctLjI5Ny4zMy0uNjkyLjM2OS0xLjM2Ni4xMTgtMi4xMTYtLjE1My0uNDU5LS40NjYtMS4wMi0xLjA5Ny0xLjk2Ni0uNzM0LTEuMS0uOTE0LTEuMzk0LTEuMDk1LTEuNzgyem0tMTAuMTY3IDQuMTcxYzEuMDA1LS44NDggMi4yNTQtMS40NSAzLjM5My0xLjYzNS40OS0uMDggMS4zMDgtLjA0OCAxLjc2Mi4wNjguNzI4LjE4NiAxLjM4LjYwNCAxLjcxOSAxLjEwMS4zMy40ODYuNDczLjkxLjYyIDEuODUyLjA2LjM3Mi4xMjMuNzQ1LjE0Mi44My4xMS40ODguMzI3Ljg3OS41OTUgMS4wNzUuNDI1LjMxMSAxLjE1OC4zMyAxLjg3OC4wNWEuOTgxLjk4MSAwIDAxLjIzNi0uMDc0Yy4wMjYuMDI2LS4zMzYuMjY5LS41OTIuMzk3YTIuMDE0IDIuMDE0IDAgMDEtLjk4My4yMzhjLS42NiAwLTEuMjA4LS4zMzUtMS42NjUtMS4wMi0uMDktLjEzNS0uMjkyLS41MzgtLjQ1LS44OTctLjQ4Mi0xLjEtLjcyLTEuNDM2LTEuMjgtMS44MDMtLjQ4OS0uMzItMS4xMTgtLjM3Ny0xLjU5MS0uMTQ1LS42MjIuMzA1LS43OTUgMS4xLS4zNSAxLjYwMy4xNzcuMi41MDcuMzczLjc3Ny40MDZhLjgzLjgzIDAgMDAuOTM5LS44M2MwLS4zMzItLjEyOC0uNTItLjQ0OC0uNjY1LS40MzctLjE5Ny0uOTA3LjAzMy0uOTA1LjQ0NC4wMDEuMTc1LjA3Ny4yODUuMjUzLjM2NS4xMTMuMDUuMTE1LjA1NS4wMjMuMDM2LS40MDEtLjA4NC0uNDk1LS41NjctLjE3Mi0uODg4LjM4Ny0uMzg2IDEuMTg4LS4yMTYgMS40NjMuMzEuMTE2LjIyMS4xMjkuNjYyLjAyOC45MjgtLjIyNS41OTUtLjg4My45MDctMS41NS43MzctLjQ1NC0uMTE2LS42MzktLjI0MS0xLjE4Ni0uODA1LS45NTEtLjk4LTEuMzItMS4xNy0yLjY5Mi0xLjM4NGwtLjI2My0uMDQxLjMtLjI1M3oiIGZpbGwtcnVsZT0ibm9uemVybyIvPjxwYXRoIGQ9Ik02LjE5NiAzLjM1bC4wOTYuMTE3YzMuNzA4IDQuNTQgNS42MjQgNi44OTYgNS43NDYgNy4wNjQuMi4yNzguMTI1LjUyNy0uMjE5LjcyMy0uMTkxLjEwOS0uNTg1LjIxOS0uNzgxLjIxOS0uMjIzIDAtLjQ3NC0uMTA3LS42NTctLjI4LS4xMjktLjEyMy0uNjUtLjkwMS0xLjg1My0yLjc2OGExODguNTMgMTg4LjUzIDAgMDAtMS43MTItMi42MzNjLS4wNDktLjA0Ni0uMDQ4LS4wNDUgMS42MTggMi45MzYgMS4wNDYgMS44NzIgMS40IDIuNTMzIDEuNCAyLjYyMiAwIC4xOC0uMDUuMjc0LS4yNzIuNTIyLS4zNy40MTMtLjUzNS44NzctLjY1NSAxLjgzNy0uMTM0IDEuMDc3LS41MSAxLjgzNy0xLjU1NCAzLjEzOC0uNjEuNzYyLS43MS45MDItLjg2NSAxLjIwOS0uMTk0LjM4Ni0uMjQ3LjYwMy0uMjY5IDEuMDkxLS4wMjMuNTE2LjAyMi44NS4xOCAxLjM0My4xMzguNDMyLjI4Mi43MTguNjUgMS4yODguMzE4LjQ5My41MDEuODU5LjUwMSAxLjAwMiAwIC4xMTQuMDIyLjExNC41MTUuMDAzIDEuMTc5LS4yNjYgMi4xMzYtLjczNSAyLjY3NS0xLjMwOS4zMzMtLjM1NS40MTEtLjU1MS40MTQtMS4wMzguMDAxLS4zMTgtLjAxLS4zODUtLjA5Ni0uNTY4LS4xNC0uMjk4LS4zOTUtLjU0Ni0uOTU3LS45My0uNzM3LS41MDQtMS4wNTEtLjkxLTEuMTM4LTEuNDY3LS4wNzItLjQ1Ny4wMTEtLjc4LjQxOS0xLjYzNC40MjEtLjg4NC41MjYtMS4yNi41OTctMi4xNTEuMDQ1LS41NzYuMTA4LS44MDMuMjc0LS45ODUuMTcyLS4xOS4zMjgtLjI1NS43NTUtLjMxMy42OTYtLjA5NSAxLjEzOS0uMjc1IDEuNTAzLS42MS4zMTYtLjI5Mi40NDgtLjU3My40NjgtLjk5NWwuMDE2LS4zMi0uMTc3LS4yMDZjLS4yNTQtLjI5Ni0yLjM1NS0yLjYxNC02LjMwNC02Ljk1NmwtLjEwNi0uMTE1LS4yMTIuMTY1ek03LjkxIDE5LjczMmEuNTY2LjU2NiAwIDAwLS4xNzQtLjc0NmMtLjIyOC0uMTUyLS41ODMtLjA4LS41ODMuMTE4IDAgLjA2LjAzMy4xMDQuMTA4LjE0My4xMjcuMDY1LjEzNi4xMzkuMDM3LjI4OC0uMTAxLjE1Mi0uMDkzLjI4Ni4wMjMuMzc3LjE4Ni4xNDYuNDUuMDY1LjU5LS4xOHptNS41MjQtNy4xNzZjLS4zMjcuMS0uNjQ0LjQ0Ny0uNzQzLjgxLS4wNi4yMjEtLjAyNi42MS4wNjQuNzMuMTQ1LjE5NC4yODYuMjQ1LjY2Ni4yNDIuNzQ0LS4wMDUgMS4zOS0uMzI0IDEuNDY2LS43MjMuMDYyLS4zMjctLjIyMy0uNzgtLjYxNC0uOTgtLjIwMi0uMTAyLS42MzEtLjE0My0uODM5LS4wNzl6bS44Ny42OGMuMTE1LS4xNjMuMDY0LS4zNC0uMTMtLjQ1OC0uMzcyLS4yMjctLjkzNC0uMDQtLjkzNC4zMTIgMCAuMTc0LjI5My4zNjUuNTYxLjM2NS4xOCAwIC40MjQtLjEwNy41MDMtLjIxOXoiLz48L2c+PC9nPjwvc3ZnPg=='};
+function logo(name, size) {
+  size = size || 20;
+  const a = A.am[name] || {}, u = a.logo || ICONS[String(name || '').toUpperCase()];
+  const hue = [...String(name || '?')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  const badge = `<span class="lg-b" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.48)}px;background:hsl(${hue} 42% 44%)">${esc(String(name || '?').charAt(0))}</span>`;
+  return u ? `<img class="lg" src="${esc(u)}" width="${size}" height="${size}" alt="" data-fb="${esc(badge)}" onerror="this.outerHTML=this.dataset.fb">` : badge;
+}
+const A = {
+  s: null, view: 'overview', acct: '', asset: null,
+  of: { asset: '全部', side: '全部', st: { '規劃': 1, '已掛單': 1, '已成交': 1, '暫停': 1 }, hint: '', q: '' },
+  sel: new Set(), collapsed: {}, tf: { asset: '全部', side: '全部' }, scen: {}, sim: null, am: {},
+  raw: null, ccy: (() => { try { return localStorage.getItem('ccy') || '原幣'; } catch (e) { return '原幣'; } })(), totCcy: 'USD'
+};
+const $ = id => document.getElementById(id);
+const view = () => $('view');
+
+// ───────────── 格式 ─────────────
+const esc = s => String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nf = (v, d) => (v === null || v === undefined || !isFinite(v)) ? '—' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const qdOf = a => (A.am[a] ? A.am[a].qd : 4);
+const pdOf = a => (A.am[a] ? A.am[a].pd : 2);
+const fq = (v, a) => nf(v, qdOf(a));
+const fp = (v, a) => nf(v, pdOf(a));
+// 金額：第二個參數是資產名稱（用它的顯示幣別）或幣別代碼；省略 = 總計幣別
+const SYM = { USD: '$', CNY: '¥', TWD: 'NT$', HKD: 'HK$' };
+const ccyFor = a => !a ? (A.totCcy || 'USD') : SYM[a] ? a : (A.am[a] ? A.am[a].dccy : (A.totCcy || 'USD'));
+const fusd = (v, a) => { if (v === null || v === undefined || !isFinite(v)) return '—'; const c = ccyFor(a), sy = SYM[c] || '$'; return (v < 0 ? '−' + sy : sy) + nf(Math.abs(v), Math.abs(v) >= 100 ? 0 : 2); };
+const ccyName = c => ({ USD: '美元', CNY: '人民幣', TWD: '台幣', HKD: '港幣' })[c] || c;
+// 數量單位：資產有設定（例如 張、股）就用它，否則用資產名稱
+const unitOf = n => (A.am[n] && A.am[n].unit) || n;
+const fpct = (v, plus) => (v === null || v === undefined || !isFinite(v)) ? '—' : ((v > 0 && plus !== false) ? '+' : '') + (v * 100).toFixed(1) + '%';
+const compact = v => {
+  const a = Math.abs(v);
+  if (a >= 1e9) return (v / 1e9).toFixed(a >= 1e10 ? 0 : 1).replace(/\.0$/, '') + 'B';
+  if (a >= 1e6) return (v / 1e6).toFixed(a >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
+  if (a >= 1e4) return (v / 1e3).toFixed(a >= 1e5 ? 0 : 1).replace(/\.0$/, '') + 'k';
+  if (a >= 100) return Math.round(v).toLocaleString('en-US');
+  return String(+Number(v).toFixed(4));
+};
+const roundTo = (v, d) => { const m = Math.pow(10, d); return Math.round(v * m) / m; };
+const num = v => { if (v === '' || v === null || v === undefined) return null; const n = parseFloat(String(v).replace(/,/g, '')); return isFinite(n) ? n : null; };
+const pad = n => String(n).padStart(2, '0');
+const toLocalInput = ms => { const d = ms ? new Date(ms) : new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fromLocalInput = s => { if (!s) return null; const t = new Date(s).getTime(); return isFinite(t) ? t : null; };
+const fdate = ms => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const sum = (arr, f) => arr.reduce((s, x) => s + (f(x) || 0), 0);
+
+// ───────────── 伺服器 ─────────────
+let busyN = 0;
+function busy(d) { busyN = Math.max(0, busyN + d); $('loading').style.display = busyN ? 'block' : 'none'; }
+function toast(msg, err, ms) {
+  const t = $('toast'); t.textContent = msg; t.className = 'toast' + (err ? ' err' : ''); t.style.display = 'block';
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = 'none', ms || (err ? 6000 : 3200));
+}
+// ═════════════ 連線、離線與同步 ═════════════
+// 兩種執行方式：
+//  1. Apps Script 網頁（GAS）：直接用 google.script.run，跟以前一樣。
+//  2. 手機離線版（PWA，放在 GitHub Pages）：資料先存在這台裝置，變更排進「待同步」佇列，有網路時送到 Apps Script。
+const GAS = !!(window.google && google.script && google.script.run);
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem('alp.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('alp.' + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  del(k) { try { localStorage.removeItem('alp.' + k); } catch (e) { /* 無 */ } }
+};
+const SY = { cfg: GAS ? null : LS.get('cfg', null), base: GAS ? null : LS.get('base', null), outbox: GAS ? [] : LS.get('outbox', []),
+  busy: false, err: '', lastOk: LS.get('lastOk', 0), timer: null, bad: 0 };
+function saveSync() { LS.set('outbox', SY.outbox); if (SY.base) LS.set('base', SY.base); LS.set('lastOk', SY.lastOk); }
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const localDay = ms => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+
+function gasRun(fn, args) {
+  return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn].apply(null, args || []));
+}
+function apiPost(body, ms) {
+  if (!SY.cfg || !SY.cfg.url) return Promise.reject(new Error('還沒設定同步網址'));
+  const ctl = window.AbortController ? new AbortController() : null;
+  const t = ctl ? setTimeout(() => ctl.abort(), ms || 90000) : null;
+  // 用 text/plain 送出（簡單請求，不需要 CORS 預檢）；Apps Script 會轉址到 googleusercontent 回傳 JSON
+  return fetch(SY.cfg.url, { method: 'POST', body: JSON.stringify(Object.assign({ key: SY.cfg.key }, body)), redirect: 'follow', signal: ctl ? ctl.signal : undefined })
+    .then(r => { if (!r.ok) throw new Error('伺服器回應 ' + r.status); return r.text(); })
+    .then(txt => {
+      try { return JSON.parse(txt); } catch (e) { throw new Error(/<html|<!doctype/i.test(txt) ? '同步網址不對，或部署的存取權不是「任何人」' : '伺服器回應格式錯誤'); }
+    })
+    .catch(e => { throw e && e.name === 'AbortError' ? new Error('連線逾時') : (e instanceof TypeError ? new Error(navigator.onLine === false ? '目前離線' : '連不到伺服器') : e); })
+    .finally(() => { if (t) clearTimeout(t); });
+}
+/** 需要連線的呼叫（先把待同步的變更送完，維持順序） */
+function srv(fn, args) {
+  if (GAS) return gasRun(fn, args);
+  return syncFlush().then(() => apiPost({ call: fn, args: args || [] }, fn === 'api_aiStep' ? 300000 : 90000)).then(j => {
+    if (!j.ok) { const e = new Error(j.error || '伺服器錯誤'); e.auth = !!j.auth; throw e; }
+    SY.err = '';
+    if (fn !== 'api_aiStep' && fn !== 'api_aiList' && j.result && j.result.orders) { SY.base = j.result; SY.lastOk = Date.now(); saveSync(); }
+    return j.result;
+  });
+}
+
+// ── 本機套用（和 Code.gs 的同名函式做一樣的事；伺服器仍是最後依據）──
+const nv = v => { if (v === '' || v === null || v === undefined) return null; const n = Number(String(v).replace(/,/g, '')); return isFinite(n) ? n : null; };
+const r2 = v => Math.round(v * 100) / 100;
+const LOCAL = {
+  api_setStatus(s, ids, status, opts) {
+    if (STATUSES.indexOf(status) < 0 || status === ST.FILLED) throw new Error('狀態不正確：' + status);
+    opts = opts || {};
+    const set = new Set(ids);
+    s.orders.forEach(o => {
+      if (!set.has(o.id) || o.status === status) return;
+      if (o.status === ST.FILLED && o.logId && opts.deleteLogs) { s.trades = s.trades.filter(t => t.id !== o.logId); o.logId = ''; }
+      o.status = status;
+    });
+  },
+  api_recordFills(s, items, common) {
+    common = common || {};
+    const rate = common.feeRate === '' || common.feeRate === null || common.feeRate === undefined ? s.settings.feeRate : (nv(common.feeRate) || 0) / 100;
+    const exch = common.exch === undefined ? s.settings.defExch : String(common.exch).trim();
+    const time = nv(common.time) || Date.now();
+    let k = 0;
+    items.forEach(it => {
+      const o = s.orders.find(x => x.id === it.id);
+      if (!o || o.status === ST.FILLED) return;
+      const price = nv(it.price) || o.price, qty = nv(it.qty) || o.qty || 0, amt = r2(price * qty);
+      s.trades.push({ id: it.logId, time: time, d: localDay(time), acct: o.acct, asset: o.asset, side: o.side, price: price, qty: qty,
+        fee: r2(amt * rate), exch: exch, oid: o.id, note: String(common.note || '').trim() });
+      o.status = ST.FILLED; o.logId = it.logId; k++;
+    });
+    if (!k) throw new Error('沒有可以登記的單（可能都已經是已成交）');
+  },
+  api_updateOrder(s, id, patch) {
+    const o = s.orders.find(x => x.id === id);
+    if (!o) throw new Error('找不到掛單 ' + id);
+    if (patch.qty !== undefined && nv(patch.qty) !== null) { o.base = nv(patch.qty); o.adj = 0; }
+    ['price', 'base', 'adj'].forEach(k => { if (patch[k] !== undefined) o[k] = patch[k] === '' || patch[k] === null ? (k === 'adj' ? 0 : null) : nv(patch[k]); });
+    ['note', 'acct', 'asset', 'side'].forEach(k => { if (patch[k] !== undefined) o[k] = String(patch[k]).trim(); });
+    if (!(o.price > 0)) throw new Error('價格要大於 0');
+  },
+  api_addOrder(s, p) {
+    if (!p.acct || !p.asset || !p.side || !(nv(p.price) > 0)) throw new Error('請填帳戶、資產、方向與價格');
+    s.orders.push({ id: p.id, acct: p.acct, asset: p.asset, side: p.side, lvl: null, price: nv(p.price), base: nv(p.base) || 0, adj: nv(p.adj) || 0,
+      status: STATUSES.indexOf(p.status) >= 0 && p.status !== ST.FILLED ? p.status : ST.PLAN, logId: '', note: String(p.note || '').trim() });
+  },
+  api_deleteOrders(s, ids) { const set = new Set(ids); s.orders = s.orders.filter(o => !set.has(o.id)); },
+  api_duplicate(s, ids, newIds) {
+    const copies = [];
+    ids.forEach((id, i) => { const o = s.orders.find(x => x.id === id); if (o) copies.push(Object.assign({}, o, { id: newIds[i], status: ST.PLAN, logId: '', note: ('複製自 ' + o.id + ' ' + (o.note || '')).trim() })); });
+    s.orders = s.orders.concat(copies);
+  },
+  api_addOrders(s, p) {
+    if (!p || !p.acct || !p.asset || !p.side) throw new Error('缺少帳戶／資產／方向');
+    if (p.mode === 'replace') s.orders = s.orders.filter(o => !(o.acct === p.acct && o.asset === p.asset && o.side === p.side && o.status !== ST.FILLED));
+    const have = new Set(s.orders.filter(o => o.acct === p.acct && o.asset === p.asset && o.side === p.side).map(o => String(o.price)));
+    const status = p.status === ST.PLACED ? ST.PLACED : ST.PLAN;
+    let n = 0;
+    (p.levels || []).forEach(l => {
+      const price = nv(l.price), qty = nv(l.qty);
+      if (!(price > 0) || !(qty > 0)) return;
+      if (p.mode !== 'replace' && p.skipDup && have.has(String(price))) return;
+      s.orders.push({ id: l.id, acct: p.acct, asset: p.asset, side: p.side, lvl: null, price: price, base: qty, adj: 0, status: status, logId: '', note: String(p.note || '').trim() });
+      n++;
+    });
+    if (!n) throw new Error('沒有新增任何掛單（價位可能都重複了）');
+  },
+  api_saveTrade(s, t) {
+    const price = nv(t.price), qty = nv(t.qty);
+    if (!t.acct || !t.asset || !t.side || !(price > 0) || !(qty > 0)) throw new Error('請填帳戶、資產、方向、成交價、數量');
+    let row = s.trades.find(x => x.id === t.id);
+    if (!row && !t._new) throw new Error('找不到成交紀錄 ' + t.id);
+    if (!row) { row = { id: t.id, oid: '' }; s.trades.push(row); }
+    const time = nv(t.time);
+    Object.assign(row, { time: time || null, d: time ? localDay(time) : '', acct: t.acct, asset: t.asset, side: t.side, price: price, qty: qty,
+      fee: nv(t.fee), exch: String(t.exch || '').trim(), note: String(t.note || '').trim() });
+  },
+  api_deleteTrade(s, id) {
+    s.trades = s.trades.filter(t => t.id !== id);
+    s.orders.forEach(o => { if (o.logId === id) { o.logId = ''; if (o.status === ST.FILLED) o.status = ST.PLACED; } });
+  },
+  api_saveHolding(s, h) {
+    if (!h.acct || !h.asset) throw new Error('請選帳戶與資產');
+    let r = s.holdings.find(x => x.acct === h.acct && x.asset === h.asset);
+    if (!r) { r = { acct: h.acct, asset: h.asset, qty: null, time: null, note: '' }; s.holdings.push(r); }
+    if (h.qty !== undefined) r.qty = nv(h.qty);
+    if (h.time !== undefined) r.time = nv(h.time) || null;
+    if (h.note !== undefined) r.note = String(h.note || '').trim();
+  },
+  api_deleteHolding(s, acct, asset) { s.holdings = s.holdings.filter(x => !(x.acct === acct && x.asset === asset)); },
+  api_saveSettings(s, x) {
+    ['alertPct', 'feeRate'].forEach(k => { if (x[k] !== undefined && nv(x[k]) !== null) s.settings[k] = nv(x[k]); });
+    if (x.defExch !== undefined) s.settings.defExch = String(x.defExch);
+  },
+  api_saveNotes(s, acct, text) {
+    if (s.settings.accounts.indexOf(acct) < 0) throw new Error('找不到帳戶 ' + acct);
+    s.settings.notes[acct] = String(text || '');
+  },
+  api_addAccount(s, name) {
+    const n = String(name || '').trim().replace(/[,，|]/g, '');
+    if (!n) throw new Error('帳戶名稱不能空白');
+    if (n.length > 20) throw new Error('帳戶名稱最多 20 個字');
+    if (s.settings.accounts.indexOf(n) >= 0) throw new Error('已經有帳戶「' + n + '」');
+    s.settings.accounts.push(n);
+  }
+};
+/** 新增的東西由這台裝置先給 ID，伺服器沿用同一個 ID，之後的變更才對得上 */
+function prepArgs(fn, args) {
+  if (fn === 'api_addOrder' && !args[0].id) args[0].id = uid('O');
+  if (fn === 'api_addOrders') (args[0].levels || []).forEach(l => { if (!l.id) l.id = uid('O'); });
+  if (fn === 'api_duplicate') args[1] = (args[0] || []).map(() => uid('O'));
+  if (fn === 'api_recordFills') (args[0] || []).forEach(it => { if (!it.logId) it.logId = uid('T'); });
+  if (fn === 'api_saveTrade' && !args[0].id) { args[0].id = uid('T'); args[0]._new = true; }
+  return args;
+}
+/** 依伺服器的規則整理掛單：最終數量、排序、層級 */
+function normalizeLocal(s) {
+  const am = {}; s.assets.forEach((a, i) => { am[a.name] = a; a._i = i; });
+  const ai = n => { const i = s.settings.accounts.indexOf(n); return i < 0 ? 999 : i; };
+  const si = n => am[n] ? am[n]._i : 999;
+  s.orders.forEach(o => { const q = (nv(o.base) || 0) + (nv(o.adj) || 0); o.qty = am[o.asset] ? roundTo(q, am[o.asset].qd) : q; });
+  s.orders.sort((a, b) => (ai(a.acct) - ai(b.acct)) || String(a.acct).localeCompare(String(b.acct)) || (si(a.asset) - si(b.asset)) ||
+    String(a.asset).localeCompare(String(b.asset)) || ((a.side === '賣' ? 0 : 1) - (b.side === '賣' ? 0 : 1)) ||
+    (a.side === '買' ? (b.price || 0) - (a.price || 0) : (a.price || 0) - (b.price || 0)));
+  let prev = '', lv = 0;
+  s.orders.forEach(o => { const k = o.acct + '|' + o.asset + '|' + o.side; lv = k === prev ? lv + 1 : 1; prev = k; o.lvl = lv; });
+  s.assets.forEach(a => { delete a._i; });
+  return s;
+}
+function applyOps(base, ops, strict) {
+  const s = JSON.parse(JSON.stringify(base));
+  ops.forEach(op => {
+    try { LOCAL[op.fn].apply(null, [s].concat(op.args)); }
+    catch (e) { if (strict) throw e; }   // 重算時失敗的就略過，交給伺服器判斷
+  });
+  return normalizeLocal(s);
+}
+/** 用「伺服器最新資料＋還沒送出的變更」重畫 */
+function rebase(force) {
+  if (!SY.base || SY.base.needsSetup) return;
+  setState(applyOps(SY.base, SY.outbox));
+  const typing = document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) && view().contains(document.activeElement);
+  if (force || ($('modal').classList.contains('hidden') && !typing)) render(); else A.needRender = true;
+}
+let flushP = null;
+function syncFlush() {
+  if (GAS || !SY.outbox.length) return Promise.resolve();
+  if (flushP) return flushP;
+  SY.busy = true; syncBadge();
+  const batch = SY.outbox.slice(0, 50);
+  flushP = apiPost({ ops: batch }).then(j => {
+    if (!j.ok) { const e = new Error(j.error || '同步失敗'); e.auth = !!j.auth; throw e; }
+    const done = new Set(), bad = [];
+    let retry = false;
+    j.results.forEach(r => { if (r.ok || !r.retry) done.add(r.id); if (r.retry) retry = true; else if (!r.ok) bad.push(r.error); });
+    SY.outbox = SY.outbox.filter(o => !done.has(o.id));
+    SY.base = j.state; SY.lastOk = Date.now(); SY.err = '';
+    saveSync();
+    flushP = null; SY.busy = false;
+    rebase();
+    syncBadge();
+    SY.bad += bad.length;
+    if (bad.length) toast('⚠ ' + (bad.length > 1 ? bad.length + ' 筆變更' : '有一筆變更') + '伺服器沒有套用（可能在另一台裝置已經改過或刪除）：' + bad[0], true, 10000);
+    if (SY.outbox.length && !retry) return syncFlush();
+  }).catch(e => {
+    flushP = null; SY.busy = false; SY.err = e.message; syncBadge();
+    if (e.auth) toast('⚠ 同步金鑰不正確，請到「設定 → 同步」重新設定', true, 9000);
+    throw e;
+  });
+  return flushP;
+}
+function syncSoon(ms) {
+  if (GAS) return;
+  clearTimeout(SY.timer);
+  SY.timer = setTimeout(() => syncFlush().catch(() => {}), ms === undefined ? 1200 : ms);
+}
+function syncBadge() {
+  const b = $('syncB'); if (!b) return;
+  if (GAS || !SY.cfg) { b.style.display = 'none'; return; }
+  const n = SY.outbox.length;
+  let t, c, tip;
+  if (SY.busy) { t = '⟳<span class="sbl"> 同步中</span>'; c = 'sb-busy'; tip = '正在把變更送到試算表'; }
+  else if (n && (SY.err || navigator.onLine === false)) { t = `↑${n}<span class="sbl"> 待同步</span>`; c = 'sb-warn'; tip = (navigator.onLine === false ? '目前離線' : SY.err) + '，有網路時會自動送出；點一下立即重試'; }
+  else if (n) { t = `↑${n}<span class="sbl"> 待同步</span>`; c = 'sb-pend'; tip = '稍後自動送出；點一下立即同步'; }
+  else if (navigator.onLine === false || SY.err) { t = '離線'; c = 'sb-warn'; tip = '目前顯示的是這台裝置上次的資料'; }
+  else { t = '✓<span class="sbl"> 已同步</span>'; c = 'sb-ok'; tip = SY.lastOk ? '上次同步 ' + fdate(SY.lastOk) : ''; }
+  b.innerHTML = t; b.className = 'btn sm syncb ' + c; b.title = tip; b.style.display = '';
+}
+/** 背景更新：送出變更，再抓最新資料與現價 */
+function syncRefresh(quiet) {
+  if (GAS) return Promise.resolve();
+  return srv('api_load', []).then(r => {
+    if (r && r.needsSetup) { A.s = r; renderSetup(); return; }
+    rebase(); syncBadge();
+  }).catch(e => {
+    SY.err = e.message; syncBadge();
+    if (e.auth) renderConnect('同步金鑰不正確或已更換，請重新輸入。');
+    else if (!quiet) toast('⚠ ' + e.message + '（先顯示這台裝置上的資料）', true);
+    throw e;
+  });
+}
+function renderConnect(msg) {
+  window.__booted = true;
+  const c = SY.cfg || {};
+  view().innerHTML = `<div class="card setup" style="text-align:left;max-width:560px">
+    <h2>連線到你的試算表</h2>
+    <p class="small muted">這是手機離線版：畫面和資料存在這台裝置，變更會在有網路時同步到你的 Google 試算表。第一次使用要輸入 Apps Script 的同步網址和金鑰（在試算表的 Apps Script 執行 <b>syncSetup</b> 會顯示）。網址和金鑰只會存在這台裝置。</p>
+    ${msg ? `<div class="note-box">${esc(msg)}</div>` : ''}
+    <div class="fg"><label class="full">同步網址（https:&#47;&#47;script.google.com/macros/s/…/exec）<input type="url" id="cfU" value="${esc(c.url || '')}" placeholder="https:&#47;&#47;script.google.com/macros/s/…/exec" autocomplete="off"></label>
+      <label class="full">同步金鑰<input type="password" id="cfK" value="${esc(c.key || '')}" autocomplete="off"></label></div>
+    <div class="foot"><button class="btn primary" data-act="cfSave" id="cfBtn">連線並下載資料</button></div>
+    <p class="small muted">還沒有網址？請看 GitHub 上這個專案的 README：在 Apps Script 執行 syncSetup，然後新增一個「存取權：任何人」的網頁應用程式部署。</p></div>`;
+}
+function connectSave() {
+  const url = $('cfU').value.trim(), key = $('cfK').value.trim();
+  if (!/^https:\/\/script\.google(usercontent)?\.com\/.+/.test(url)) return toast('網址應該是 https:/' + '/script.google.com/macros/s/…/exec', true);
+  if (key.length < 20) return toast('請貼上完整的同步金鑰', true);
+  const old = SY.cfg;
+  SY.cfg = { url: url, key: key };
+  const b = $('cfBtn'); b.disabled = true; b.textContent = '連線中…';
+  apiPost({}).then(j => {
+    if (!j.ok) throw new Error(j.error || '連線失敗');
+    LS.set('cfg', SY.cfg);
+    if (j.result && j.result.needsSetup) { A.s = j.result; return renderSetup(); }
+    SY.base = j.result; SY.lastOk = Date.now(); SY.err = ''; saveSync();
+    rebase(true); syncBadge(); toast('✅ 已連線，資料已存到這台裝置');
+    syncSoon(0);
+  }).catch(e => { SY.cfg = old; b.disabled = false; b.textContent = '連線並下載資料'; toast('⚠ ' + e.message, true, 8000); });
+}
+function syncCard() {
+  if (GAS) return '';
+  const n = SY.outbox.length, u = SY.cfg && SY.cfg.url || '';
+  return `<div class="card mt" id="syncCard"><h2>同步（手機離線版）</h2>
+    <div class="kv"><span>狀態</span><b>${n ? `還有 ${n} 筆變更待同步` : '全部已同步'}</b>
+      <span>上次同步</span><b>${SY.lastOk ? esc(fdate(SY.lastOk)) : '—'}</b>
+      <span>同步網址</span><b style="font-weight:400;font-size:12px;word-break:break-all">${esc(u.replace(/^(.{40}).*(.{12})$/, '$1…$2'))}</b></div>
+    ${SY.err ? `<div class="note-box">上次錯誤：${esc(SY.err)}</div>` : ''}
+    <p class="small muted">記帳、改狀態、登記成交、改單、加單、持倉與筆記會先存在這台裝置，有網路時自動送出。AI 診斷、更新現價、資產設定、帳戶改名／刪除需要連線。</p>
+    <div class="foot"><button class="btn danger" data-act="cfReset" style="margin-right:auto">清除這台裝置的資料</button><button class="btn" data-act="cfEdit">更改連線設定</button><button class="btn primary" data-act="cfSync">立即同步</button></div></div>`;
+}
+function syncWire() {
+  if (GAS) return;
+  window.addEventListener('online', () => { syncBadge(); setTimeout(() => syncRefresh(true).catch(() => {}), 300); });
+  window.addEventListener('offline', syncBadge);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !SY.cfg) return;
+    if (SY.outbox.length) syncSoon(300);
+    if (Date.now() - (SY.lastOk || 0) > 2 * 60 * 1000) syncRefresh(true).catch(() => {});
+  });
+  setInterval(() => { if (SY.outbox.length && !SY.busy) syncFlush().catch(() => {}); }, 60 * 1000);
+  // 視窗關掉後補畫延後的更新
+  new MutationObserver(() => { if (A.needRender && $('modal').classList.contains('hidden')) { A.needRender = false; render(); } })
+    .observe($('modal'), { attributes: true, attributeFilter: ['class'] });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+/** 介面呼叫伺服器的唯一入口。手機離線版：能在本機做的變更立刻生效並排入同步；其他的需要連線 */
+function call(fn, args, ok, opts) {
+  opts = opts || {};
+  args = args || [];
+  if (GAS) {
+    if (!opts.silent) busy(1);
+    google.script.run
+      .withSuccessHandler(r => { if (!opts.silent) busy(-1); if (r && r.orders) setState(r); if (ok) ok(r); })
+      .withFailureHandler(e => { if (!opts.silent) busy(-1); toast('⚠ ' + (e && e.message ? e.message : e), true); })[fn].apply(null, args);
+    return;
+  }
+  if (LOCAL[fn]) {
+    const op = { id: uid('op'), fn: fn, args: prepArgs(fn, JSON.parse(JSON.stringify(args))), t: Date.now() };
+    let next;
+    try { next = applyOps(A.raw, [op], true); } catch (e) { toast('⚠ ' + e.message, true); return; }
+    SY.outbox.push(op);
+    if (!LS.set('outbox', SY.outbox)) toast('⚠ 這台裝置的儲存空間不足，變更可能沒有保存', true);
+    setState(next); syncBadge();
+    if (ok) ok(next);
+    syncSoon();
+    return;
+  }
+  if (!opts.silent) busy(1);
+  srv(fn, args).then(r => {
+    if (!opts.silent) busy(-1);
+    if (r && r.orders) setState(applyOps(r, SY.outbox));
+    syncBadge();
+    if (ok) ok(r);
+  }).catch(e => {
+    if (!opts.silent) busy(-1);
+    syncBadge();
+    if (!opts.silent) toast('⚠ ' + (/離線|連不到|逾時|伺服器回應/.test(e.message) ? e.message + '：這個動作需要連線，請稍後再試' : e.message), true, 7000);
+  });
+}
+
+// ───────────── 狀態與推導 ─────────────
+// ───────────── 幣別換算 ─────────────
+// A.raw = 伺服器原始資料（各資產原幣）；A.s = 換成目前顯示幣別後的資料（畫面都用這份）
+// 掛單、現價用最新匯率；成交紀錄用成交當天（附近）的匯率；沒有日期的用最新匯率
+function fxRate(c, d) {   // 1 USD = ? c
+  if (c === 'USD') return 1;
+  const fx = A.raw && A.raw.fx; if (!fx) return null;
+  const h = d && fx.hist && fx.hist[d];
+  if (h && h[c] > 0) return h[c];
+  return fx.latest && fx.latest[c] > 0 ? fx.latest[c] : null;
+}
+function fxConv(v, from, to, d) {
+  if (v === null || v === undefined || from === to) return v;
+  const a = fxRate(from, d), b = fxRate(to, d);
+  return a && b ? v / a * b : null;
+}
+function toDisplay(raw) {
+  if (!raw || raw.needsSetup) return raw;
+  const s = JSON.parse(JSON.stringify(raw));
+  const noFx = !(raw.fx && raw.fx.latest);
+  const am = {};
+  s.assets.forEach(a => {
+    a.ccy = a.ccy || 'USD';
+    a.dccy = (A.ccy === '原幣' || noFx) ? a.ccy : A.ccy;
+    a.f = a.dccy === a.ccy ? 1 : fxConv(1, a.ccy, a.dccy);
+    if (!a.f) { a.f = 1; a.dccy = a.ccy; }
+    if (a.price !== null && a.price !== undefined) a.price *= a.f;
+    // 換幣後價格的小數位：換成較小的單位（例如 USD→TWD）少幾位，換成較大的單位多幾位
+    if (a.f !== 1) a.pd = Math.max(0, Math.min(8, a.pd - Math.floor(Math.log10(a.f) + 1e-9)));
+    am[a.name] = a;
+  });
+  s.orders.forEach(o => { const a = am[o.asset]; if (a && a.f !== 1 && o.price !== null) o.price *= a.f; });
+  s.trades.forEach(t => {
+    const a = am[t.asset]; if (!a || a.dccy === a.ccy) return;
+    const k = fxConv(1, a.ccy, a.dccy, t.d) || a.f;
+    if (t.price !== null) t.price *= k;
+    if (t.fee !== null && t.fee !== undefined) t.fee *= k;
+  });
+  const cs = [...new Set(s.assets.map(a => a.dccy))];
+  A.totCcy = A.ccy !== '原幣' && !noFx ? A.ccy : (cs.length === 1 ? cs[0] : 'USD');
+  A.noFx = noFx;
+  return s;
+}
+/** 把某資產顯示幣別的金額換成總計幣別（最新匯率） */
+function toTot(v, asset) { const a = A.am[asset]; if (!a || a.dccy === A.totCcy) return v; const r = fxConv(v, a.dccy, A.totCcy); return r === null ? 0 : r; }
+const rawAsset = n => (A.raw && A.raw.assets.find(x => x.name === n)) || { ccy: 'USD', pd: 2, qd: 4 };
+const nativeCcy = n => rawAsset(n).ccy || 'USD';
+const rawOrder = id => A.raw.orders.find(x => x.id === id);
+/** 顯示幣別 → 原幣（套用模擬器時用） */
+function toNative(v, asset) { const a = A.am[asset]; return a && a.f && a.f !== 1 ? v / a.f : v; }
+function setState(s) {
+  A.raw = s;
+  A.s = toDisplay(s);
+  s = A.s;
+  derive();
+  // 清掉已不存在的選取
+  const ids = new Set(s.orders.map(o => o.id));
+  [...A.sel].forEach(id => { if (!ids.has(id)) A.sel.delete(id); });
+  const accts = s.settings.accounts;
+  if (accts.indexOf(A.acct) < 0) A.acct = accts[0];
+  $('gAcct').innerHTML = accts.map(a => `<option ${a === A.acct ? 'selected' : ''}>${esc(a)}</option>`).join('');
+  if (!A.asset || !A.am[A.asset]) A.asset = s.assets.length ? s.assets[0].name : null;
+  if (A.sim) A.sim.acct = A.acct;
+  if (A.sim && A.am[A.sim.asset]) {
+    const a = A.am[A.sim.asset];
+    A.sim.price = a.price; A.sim.holding = holdingOf(A.sim.asset, A.sim.acct);
+    A.sim.existing = s.orders.filter(o => o.acct === A.sim.acct && o.asset === A.sim.asset && o.side === A.sim.side);
+  }
+  const d = new Date(s.now);
+  $('meta').textContent = `更新 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function derive() {
+  const s = A.s, am = {};
+  s.assets.forEach((a, i) => { a.i = i; am[a.name] = a; });
+  A.am = am;
+  const alert = s.settings.alertPct;
+  s.orders.forEach(o => {
+    const a = am[o.asset], cur = a && a.price;
+    o.val = (o.qty || 0) * (o.price || 0);
+    o.pct = cur && o.price ? o.price / cur - 1 : null;
+    const crossed = o.pct !== null && ((o.side === '賣' && o.pct <= 0) || (o.side === '買' && o.pct >= 0));
+    o.hint = o.pct === null ? '' : (o.status === ST.PLACED && crossed) ? 'cross' : (o.status === ST.PLAN && crossed) ? 'wrong' :
+      (o.status === ST.PLAN && Math.abs(o.pct) <= alert) ? 'near' : '';
+  });
+  s.trades.forEach(t => t.amt = (t.price || 0) * (t.qty || 0));
+  s.holdings.forEach(h => {
+    let b = 0, sl = 0;
+    if (h.qty !== null && h.time) s.trades.forEach(t => {
+      if (t.acct === h.acct && t.asset === h.asset && t.time && t.time > h.time) { if (t.side === '買') b += t.qty || 0; else sl += t.qty || 0; }
+    });
+    h.buy = b; h.sell = sl; h.est = h.qty === null ? null : h.qty + b - sl;
+  });
+}
+const inAcct = x => x.acct === A.acct;
+/** 持倉：只加總「有設定持倉」的帳戶，並回報哪些帳戶沒設定 */
+function holdingInfo(asset, acct) {
+  const s = A.s;
+  const accts = [acct || A.acct];
+  const known = [], missing = [];
+  let q = 0;
+  accts.forEach(a => {
+    const hs = s.holdings.filter(h => h.acct === a && h.asset === asset && h.est !== null);
+    if (hs.length) { known.push(a); q += sum(hs, h => h.est); } else missing.push(a);
+  });
+  return { q: known.length ? q : null, known: known, missing: missing };
+}
+function holdingOf(asset, acct) { return holdingInfo(asset, acct).q; }
+function sideStats(asset, side, filterFn) {
+  const os = A.s.orders.filter(o => o.asset === asset && o.side === side && (filterFn ? filterFn(o) : inAcct(o)));
+  const by = st => os.filter(o => o.status === st);
+  const r = { os: os };
+  STATUSES.forEach(st => { const l = by(st); r[st] = { n: l.length, q: sum(l, o => o.qty), v: sum(l, o => o.val) }; });
+  r.openQ = r[ST.PLAN].q + r[ST.PLACED].q; r.openV = r[ST.PLAN].v + r[ST.PLACED].v;
+  r.totQ = r.openQ + r[ST.FILLED].q;
+  const cur = A.am[asset] && A.am[asset].price;
+  const open = os.filter(o => o.status === ST.PLAN || o.status === ST.PLACED);
+  if (cur) {
+    const c = side === '賣' ? open.filter(o => o.price > cur).map(o => o.price) : open.filter(o => o.price < cur).map(o => o.price);
+    r.next = c.length ? (side === '賣' ? Math.min(...c) : Math.max(...c)) : null;
+  } else r.next = null;
+  const ts = A.s.trades.filter(t => t.asset === asset && t.side === side && (filterFn ? filterFn(t) : inAcct(t)));
+  r.tQ = sum(ts, t => t.qty); r.tV = sum(ts, t => t.amt); r.tFee = sum(ts, t => t.fee);
+  return r;
+}
+
+// ───────────── 導覽 ─────────────
+function go(v, extra) {
+  if (extra) Object.assign(A, extra);
+  A.view = v;
+  [...$('nav').querySelectorAll('button')].forEach(b => b.classList.toggle('on', b.dataset.v === (v === 'asset' ? 'overview' : v)));
+  hidePop();
+  render();
+  window.scrollTo(0, 0);
+}
+function render() {
+  if (!A.s) return;
+  if (A.s.needsSetup) return renderSetup();
+  const f = { overview: vOverview, asset: vAsset, orders: vOrders, sim: vSim, trades: vTrades, settings: vSettings }[A.view];
+  f();
+  renderBatch();
+}
+
+// ───────────── 初始化畫面 ─────────────
+function renderSetup() {
+  window.__booted = true;
+  if (!GAS) { view().innerHTML = `<div class="card setup"><h2>試算表還沒初始化</h2><p>請先在試算表的 Apps Script 編輯器執行 <b>setup</b>，完成後回來按重試。</p><div class="foot" style="justify-content:center"><button class="btn primary" data-act="cfRetry">重試</button></div></div>`; return; }
+  view().innerHTML = `<div class="card setup"><h2 style="justify-content:center">第一次使用</h2>
+    <p>要在背後的 Google 試算表建立資料表${A.s.hasSeed ? '，並匯入原 Excel 的掛單（362 張）' : ''}。</p>
+    <p class="muted small">如果試算表裡有舊版（v1）留下的工作表，會一起清掉重建。</p>
+    <button class="btn primary" data-act="doSetup">建立並匯入</button></div>`;
+}
+
+// ═════════════ 總覽 ═════════════
+function vOverview() {
+  const s = A.s;
+  const os = s.orders.filter(inAcct);
+  const cnt = k => os.filter(o => o.hint === k).length;
+  const c1 = cnt('cross'), c2 = cnt('near'), c3 = cnt('wrong');
+  let h = `<h1>總覽 <small>帳戶：${esc(A.acct)}</small></h1><div class="alerts">`;
+  h += c1 ? `<div class="alert cross" data-act="hintGo" data-h="cross"><b>${c1}</b> 張已掛單的價格被穿越，可能已成交 →</div>` : '';
+  h += c2 ? `<div class="alert near" data-act="hintGo" data-h="near"><b>${c2}</b> 張規劃中的單接近現價（±${(s.settings.alertPct * 100).toFixed(0)}%），可以掛了 →</div>` : '';
+  h += c3 ? `<div class="alert wrong" data-act="hintGo" data-h="wrong"><b>${c3}</b> 張規劃中的單已在現價另一側 →</div>` : '';
+  if (!c1 && !c2 && !c3) h += `<div class="alert ok">沒有需要處理的提醒</div>`;
+  h += '</div>';
+  // 總計
+  let realized = 0, spent = 0, openSellV = 0, openBuyV = 0, holdV = 0, holdKnown = false;
+  s.assets.forEach(a => {
+    const sS = sideStats(a.name, '賣'), sB = sideStats(a.name, '買');
+    realized += toTot(sS.tV, a.name); spent += toTot(sB.tV, a.name); openSellV += toTot(sS.openV, a.name); openBuyV += toTot(sB.openV, a.name);
+    const hq = holdingOf(a.name); if (hq !== null && a.price) { holdV += toTot(hq * a.price, a.name); holdKnown = true; }
+  });
+  h += `<div class="kpis" style="margin-bottom:12px">
+    ${kpi('持倉總價值', holdKnown ? fusd(holdV) : '—', holdKnown ? '只含已設定持倉的帳戶' : '到「設定 → 持倉」填入持倉量')}
+    ${kpi('已兌現（賣出）', fusd(realized), '成交紀錄合計')}
+    ${kpi('已花費（買入）', fusd(spent), '成交紀錄合計')}
+    ${kpi('未成交賣單價值', fusd(openSellV), '已掛單＋規劃')}
+    ${kpi('未成交買單所需資金', fusd(openBuyV), '已掛單＋規劃')}</div>`;
+  // 這個帳戶沒有持倉設定、也沒有任何掛單的資產不顯示
+  const shown = s.assets.filter(a => acctUses(a.name));
+  const hidden = s.assets.length - shown.length;
+  if (!shown.length) h += `<div class="card empty">帳戶「${esc(A.acct)}」還沒有任何資產的持倉或掛單。<br>可以到「掛單簿 → ＋ 新增掛單」、「模擬器」安排掛單，或到「設定 → 持倉」填入持倉。</div>`;
+  h += '<div class="acards">';
+  shown.forEach(a => {
+    const sS = sideStats(a.name, '賣'), sB = sideStats(a.name, '買');
+    const hi = holdingInfo(a.name), hq = hi.q;
+    const tot = sS[ST.FILLED].q + sS[ST.PLACED].q + sS[ST.PLAN].q;
+    const w = q => tot ? (q / tot * 100) + '%' : '0';
+    h += `<div class="card acard" data-act="goAsset" data-asset="${esc(a.name)}">
+      <div class="hd">${logo(a.name, 26)}<b>${esc(a.name)}</b><span class="src">${esc(a.source || '沒有價格')}</span><span class="p">${fp(a.price, a.name)}</span></div>
+      <div class="kv"><span>估計持倉${hq !== null && hi.missing.length ? `<small class="muted">（只含 ${esc(hi.known.join('、'))}）</small>` : ''}</span><b>${hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}<small>${hq !== null && a.price ? fusd(hq * a.price, a.name) : ''}</small></b></div>
+      ${tot ? `<div class="lbl"><span>賣單完成 <b>${fpct(sS[ST.FILLED].q / tot, false)}</b></span><span>${fq(sS[ST.FILLED].q, a.name)} / ${fq(tot, a.name)}</span></div>
+      <div class="bar"><i style="width:${w(sS[ST.FILLED].q)};background:var(--filled)"></i><i style="width:${w(sS[ST.PLACED].q)};background:var(--placed)"></i><i style="width:${w(sS[ST.PLAN].q)};background:var(--plan)"></i></div>` : '<div class="lbl"><span class="muted">沒有賣單</span></div>'}
+      <div class="kv" style="margin-top:9px">
+        <span>下一個賣價</span><b>${sS.next ? fp(sS.next, a.name) + `<small>${fpct(sS.next / a.price - 1)}</small>` : '—'}</b>
+        <span>下一個買價</span><b>${sB.next ? fp(sB.next, a.name) + `<small>${fpct(sB.next / a.price - 1)}</small>` : '—'}</b>
+        <span>已兌現／未成交賣單</span><b>${fusd(sS.tV, a.name)}<small>${fusd(sS.openV, a.name)}</small></b>
+        ${sB.os.length ? `<span>買單已成交／未成交</span><b>${fq(sB[ST.FILLED].q, a.name)}<small>${fq(sB.openQ, a.name)}</small></b>` : ''}
+      </div></div>`;
+  });
+  h += '</div>';
+  if (shown.length) h += '<div class="legend mt"><span><i style="background:var(--filled)"></i>已成交</span><span><i style="background:var(--placed)"></i>已掛單</span><span><i style="background:var(--plan)"></i>規劃</span><span class="muted">（長條 = 賣單數量占比）</span>' + (hidden && shown.length ? `<span class="muted">　另有 ${hidden} 個資產在這個帳戶沒有持倉也沒有掛單，已隱藏</span>` : '') + '</div>';
+  view().innerHTML = h;
+}
+/** 目前帳戶是否用到這個資產：有持倉設定，或有任何掛單（含已成交、暫停） */
+function acctUses(name, acct) {
+  acct = acct || A.acct;
+  return A.s.orders.some(o => o.acct === acct && o.asset === name) ||
+    A.s.holdings.some(x => x.acct === acct && x.asset === name && x.qty !== null && x.qty !== undefined && x.qty !== '');
+}
+function kpi(l, v, s) { return `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s || '&nbsp;'}</div></div>`; }
+
+// ═════════════ 資產 ═════════════
+function vAsset() {
+  const s = A.s, a = A.am[A.asset];
+  if (!a) { view().innerHTML = '<div class="empty">還沒有資產，請到「設定」新增。</div>'; return; }
+  const n = a.name, sS = sideStats(n, '賣'), sB = sideStats(n, '買'), hi = holdingInfo(n), hq = hi.q;
+  const openK = st => sum(st.os.filter(o => (o.status === ST.PLAN || o.status === ST.PLACED) && hi.known.indexOf(o.acct) >= 0), o => o.qty);
+  const sK = openK(sS), bK = openK(sB);
+  let h = `<h1><button class="btn sm" data-act="back">← 總覽</button> ${logo(n, 26)} ${esc(n)} <small>${esc(A.acct)} · 現價 ${fp(a.price, n)}（${esc(a.source || '沒有價格')}）</small><span class="sp"></span><button class="btn primary" data-act="aiOpen">🤖 AI 診斷${AI.busy[A.acct + '|' + n] ? '（分析中…）' : ''}</button></h1>
+    <div class="chips" style="margin-bottom:12px">${s.assets.map(x => `<button class="chipbtn ${x.name === n ? 'on' : ''}" data-act="pickAsset" data-asset="${esc(x.name)}">${logo(x.name, 16)}${esc(x.name)}</button>`).join('')}</div>`;
+  const kvS = st => `${fq(st.q, n)}<small>${st.n} 張</small>`;
+  h += `<div class="grid g3">
+    <div class="card"><h2>賣單（越漲越賣）<span class="sp"></span><button class="btn sm" data-act="simGo" data-side="賣">用模擬器推演</button></h2>
+      <div class="kv"><span>計畫總量</span><b>${fq(sS.totQ, n)}</b>
+      <span>完成度</span><b>${sS.totQ ? fpct(sS[ST.FILLED].q / sS.totQ, false) : '—'}</b>
+      <span><i class="sw" style="background:var(--filled)"></i>已成交</span><b>${kvS(sS[ST.FILLED])}</b>
+      <span><i class="sw" style="background:var(--placed)"></i>已掛單</span><b>${kvS(sS[ST.PLACED])}</b>
+      <span><i class="sw" style="background:var(--plan)"></i>規劃中</span><b>${kvS(sS[ST.PLAN])}</b>
+      ${sS[ST.PAUSED].n ? `<span><i class="sw" style="background:var(--paused)"></i>暫停</span><b>${kvS(sS[ST.PAUSED])}</b>` : ''}
+      <span>已兌現</span><b>${fusd(sS.tV, n)}<small>均價 ${sS.tQ ? fp(sS.tV / sS.tQ, n) : '—'}</small></b>
+      <span>未成交價值</span><b>${fusd(sS.openV, n)}<small>均價 ${sS.openQ ? fp(sS.openV / sS.openQ, n) : '—'}</small></b>
+      <span>下一個賣價</span><b>${sS.next ? fp(sS.next, n) + `<small>${fpct(sS.next / a.price - 1)}</small>` : '—'}</b></div></div>
+    <div class="card"><h2>買單（越跌越買）<span class="sp"></span><button class="btn sm" data-act="simGo" data-side="買">用模擬器推演</button></h2>
+      <div class="kv"><span>計畫總量</span><b>${fq(sB.totQ, n)}</b>
+      <span>完成度</span><b>${sB.totQ ? fpct(sB[ST.FILLED].q / sB.totQ, false) : '—'}</b>
+      <span><i class="sw" style="background:var(--filled)"></i>已成交</span><b>${kvS(sB[ST.FILLED])}</b>
+      <span><i class="sw" style="background:var(--placed)"></i>已掛單</span><b>${kvS(sB[ST.PLACED])}</b>
+      <span><i class="sw" style="background:var(--plan)"></i>規劃中</span><b>${kvS(sB[ST.PLAN])}</b>
+      <span>已花費</span><b>${fusd(sB.tV, n)}<small>均價 ${sB.tQ ? fp(sB.tV / sB.tQ, n) : '—'}</small></b>
+      <span>未成交所需資金</span><b>${fusd(sB.openV, n)}<small>均價 ${sB.openQ ? fp(sB.openV / sB.openQ, n) : '—'}</small></b>
+      <span>下一個買價</span><b>${sB.next ? fp(sB.next, n) + `<small>${fpct(sB.next / a.price - 1)}</small>` : '—'}</b></div></div>
+    <div class="card"><h2>持倉</h2>
+      <div class="kv"><span>估計持倉</span><b>${hq === null ? '<span class="muted">未設定</span>' : fq(hq, n)}</b>
+      <span>持倉價值</span><b>${hq !== null && a.price ? fusd(hq * a.price, n) : '—'}</b>
+      <span>未成交賣單 ÷ 持倉</span><b class="${hq && sK > hq ? 'down' : ''}">${hq ? fpct(sK / hq, false) : '—'}</b>
+      <span>賣單全成交後</span><b class="${hq !== null && hq - sK < 0 ? 'down' : ''}">${hq !== null ? fq(hq - sK, n) : '—'}</b>
+      <span>買賣單全成交後</span><b>${hq !== null ? fq(hq - sK + bK, n) : '—'}</b></div>
+      ${hq === null ? '<p class="small muted" style="margin:10px 0 0">到「設定 → 持倉」填入目前持倉量，就能算占比與情境後持倉。</p>'
+        : hi.missing.length ? `<p class="small" style="margin:10px 0 0;color:var(--warn)">${esc(hi.missing.join('、'))} 還沒設定持倉，以上只計算 ${esc(hi.known.join('、'))} 的持倉與掛單。</p>` : ''}</div>
+  </div>`;
+  // 圖表
+  h += `<div class="grid mt gchart">
+    <div class="card"><div class="legend" style="margin-bottom:6px"><b style="color:var(--ink)">賣單階梯</b>
+      <span><i style="background:var(--filled)"></i>已成交</span><span><i style="background:var(--placed)"></i>已掛單</span><span><i style="background:var(--plan)"></i>規劃</span><span><i style="background:var(--paused)"></i>暫停</span>
+      <span class="sp"></span><span class="muted">上：每個價位數量　下：累計兌現</span></div><div class="chart" id="chSell"></div></div>
+    <div class="grid" style="align-content:start">
+      <div class="card"><h2>賣單狀態比例 <small class="muted" style="font-weight:400">依數量</small></h2><div id="dnSell"></div></div>
+      <div class="card"><h2>買單狀態比例 <small class="muted" style="font-weight:400">依數量</small></h2><div id="dnBuy"></div></div>
+    </div></div>`;
+  h += `<div class="card mt"><div class="legend" style="margin-bottom:6px"><b style="color:var(--ink)">買單階梯</b><span class="sp"></span><span class="muted">上：每個價位數量　下：累計花費</span></div><div class="chart" id="chBuy"></div></div>`;
+  // 情境
+  h += `<div class="card mt"><div class="scen"><span><b>情境價格</b></span><input type="range" id="scR"><input type="number" id="scV" step="any" placeholder="輸入價格"></div><div class="scen-out" id="scOut"></div></div>`;
+  // 階梯表
+  h += `<div class="grid g2 mt"><div><h2>賣單 <small class="muted" style="font-weight:400">價格由低到高</small></h2>${ladderTable(sS.os, '賣')}</div>
+        <div><h2>買單 <small class="muted" style="font-weight:400">價格由高到低</small></h2>${ladderTable(sB.os, '買')}</div></div>`;
+  view().innerHTML = h;
+  const bS = bucketsFrom(sS.os, '賣'), bB = bucketsFrom(sB.os, '買');
+  const scen = A.scen[n] || null;
+  ladderChart($('chSell'), bS, { side: '賣', cur: a.price, scen: scen, asset: n });
+  ladderChart($('chBuy'), bB, { side: '買', cur: a.price, scen: scen, asset: n, h1: 150, h2: 80 });
+  $('dnSell').innerHTML = donut(sS, n);
+  $('dnBuy').innerHTML = donut(sB, n);
+  // 情境
+  const allP = sS.os.concat(sB.os).map(o => o.price).concat(a.price ? [a.price] : []);
+  const r = $('scR');
+  if (allP.length) {
+    const lo = Math.min(...allP) * 0.95, hi = Math.max(...allP) * 1.03;
+    r.min = lo; r.max = hi; r.step = (hi - lo) / 1000; r.value = scen || a.price || lo;
+  }
+  $('scV').value = scen ? roundTo(scen, a.pd) : '';
+  const upd = v => { A.scen[n] = v; scenText(n, v, sS, sB, hi); ladderChart($('chSell'), bS, { side: '賣', cur: a.price, scen: v, asset: n }); ladderChart($('chBuy'), bB, { side: '買', cur: a.price, scen: v, asset: n, h1: 150, h2: 80 }); };
+  r.oninput = () => { $('scV').value = roundTo(+r.value, a.pd); upd(+r.value); };
+  $('scV').onchange = () => { const v = num($('scV').value); if (v > 0) { r.value = v; upd(v); } else { A.scen[n] = null; scenText(n, null); } };
+  scenText(n, scen, sS, sB, hi);
+}
+function scenText(n, X, sS, sB, hi) {
+  const el = $('scOut'), a = A.am[n];
+  if (!X) { el.innerHTML = '<span class="muted">拖曳滑桿或輸入價格：漲上去看賣單會成交多少，跌下來看買單會成交多少。</span>'; return; }
+  const open = l => l.filter(o => o.status === ST.PLAN || o.status === ST.PLACED);
+  const sells = open(sS.os).filter(o => o.price <= X), buys = open(sB.os).filter(o => o.price >= X);
+  const sq = sum(sells, o => o.qty), sv = sum(sells, o => o.val), bq = sum(buys, o => o.qty), bv = sum(buys, o => o.val);
+  let t = `價格到 <b>${fp(X, n)}</b>（${fpct(a.price ? X / a.price - 1 : null)}）時：`;
+  if (sq) t += `賣出 <b>${fq(sq, n)} ${esc(unitOf(n))}</b>（${sells.length} 張），新增兌現 <b>${fusd(sv, n)}</b>；累計兌現 ${fusd(sS.tV + sv, n)}，賣出均價 ${fp((sS.tV + sv) / (sS.tQ + sq), n)}。`;
+  if (bq) t += `買入 <b>${fq(bq, n)} ${esc(unitOf(n))}</b>（${buys.length} 張），需要資金 <b>${fusd(bv, n)}</b>。`;
+  if (!sq && !bq) t += '沒有新的單會成交。';
+  if (hi && hi.q !== null) {
+    const kq = l => sum(l.filter(o => hi.known.indexOf(o.acct) >= 0), o => o.qty);
+    const after = hi.q - kq(sells) + kq(buys);
+    t += `<br>情境後持倉 <b class="${after < 0 ? 'down' : ''}">${fq(after, n)} ${esc(unitOf(n))}</b>，價值 ${fusd(after * X, n)}${hi.missing.length ? `（只算 ${esc(hi.known.join('、'))}）` : ''}。`;
+  }
+  el.innerHTML = t;
+}
+function bucketsFrom(os, side) {
+  const m = {};
+  os.forEach(o => {
+    const k = String(o.price);
+    const b = m[k] = m[k] || { price: o.price, f: 0, p: 0, n: 0, z: 0, ids: [] };
+    const key = o.status === ST.FILLED ? 'f' : o.status === ST.PLACED ? 'p' : o.status === ST.PAUSED ? 'z' : 'n';
+    b[key] += o.qty || 0; b.ids.push(o.id);
+  });
+  return Object.values(m).sort((x, y) => side === '買' ? y.price - x.price : x.price - y.price);
+}
+function donut(st, n) {
+  const parts = [[ST.FILLED, COL.filled], [ST.PLACED, COL.placed], [ST.PLAN, COL.plan], [ST.PAUSED, COL.paused]].map(p => ({ l: p[0], c: p[1], v: st[p[0]].q }));
+  const tot = sum(parts, p => p.v);
+  if (!tot) return '<div class="muted small">沒有單</div>';
+  const R = 44, C = 2 * Math.PI * R;
+  let off = 0, arcs = '';
+  parts.forEach(p => {
+    if (!p.v) return;
+    const len = p.v / tot * C, gap = parts.filter(x => x.v).length > 1 ? 2 : 0;
+    arcs += `<circle r="${R}" cx="60" cy="60" fill="none" stroke="${p.c}" stroke-width="18" stroke-dasharray="${Math.max(0, len - gap)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"/>`;
+    off += len;
+  });
+  const fp0 = st[ST.FILLED].q / (tot - st[ST.PAUSED].q || 1);
+  return `<div class="donut"><svg viewBox="0 0 120 120" width="120" height="120">${arcs}
+    <text x="60" y="58" text-anchor="middle" font-size="17" font-weight="700" fill="#1f2328">${fpct(fp0, false)}</text>
+    <text x="60" y="75" text-anchor="middle" font-size="10" fill="#898781">已成交</text></svg>
+    <div class="lg">${parts.map(p => `<div><span><i class="sw" style="background:${p.c}"></i>${p.l}</span><b>${fq(p.v, n)} <span class="muted" style="font-weight:400">${fpct(p.v / tot, false)}</span></b></div>`).join('')}</div></div>`;
+}
+function ladderTable(os, side) {
+  if (!os.length) return '<div class="card empty">沒有單</div>';
+  const n = os[0].asset, many = false;
+  const rows = os.slice().sort((x, y) => side === '買' ? y.price - x.price : x.price - y.price);
+  let h = `<div class="tw" style="max-height:440px"><table><thead><tr>${many ? '<th class="l">帳戶</th>' : ''}<th class="c">#</th><th>價格</th><th>距現價</th><th>數量</th><th>價值</th><th class="l">狀態</th><th class="l">提示</th></tr></thead><tbody>`;
+  rows.forEach(o => {
+    h += `<tr class="${RCLS[o.status]}">${many ? `<td class="l">${esc(o.acct)}</td>` : ''}<td class="c">${o.lvl === null ? '' : o.lvl}</td><td class="px">${fp(o.price, n)}</td><td>${fpct(o.pct)}</td>
+      <td class="q"><b>${fq(o.qty, n)}</b></td><td>${fusd(o.val, n)}</td><td class="l">${stChip(o)}</td><td class="l">${hintTxt(o)}</td></tr>`;
+  });
+  return h + '</tbody></table></div>';
+}
+const stChip = o => `<button class="st ${SCLS[o.status]}" data-act="stPop" data-id="${esc(o.id)}">${esc(o.status)}</button>`;
+const hintTxt = o => o.hint ? `<span class="hint ${o.hint}">${HINT[o.hint]}</span>` : '';
+
+// ═════════════ 階梯圖（SVG）═════════════
+function niceMax(v) {
+  if (!(v > 0)) return 1;
+  const e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e;
+}
+function topRound(x, y, w, h, r) {
+  if (h <= 0) return '';
+  r = Math.min(r, w / 2, h);
+  return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
+}
+function ladderChart(host, buckets, o) {
+  host.innerHTML = '';
+  const W = Math.max(300, host.clientWidth || 800), small = W < 560;
+  if (!buckets.length) { host.innerHTML = '<div class="empty">沒有單</div>'; return; }
+  const H1 = o.h1 || (small ? 160 : 220), H2 = o.h2 || (small ? 74 : 100), GAP = 38, padL = small ? 48 : 62, padR = 12, padT = 24, padB = 24;
+  const H = padT + H1 + GAP + H2 + padB, x0 = padL, pw = W - padL - padR, n = buckets.length, band = pw / n;
+  const bw = Math.max(1.5, Math.min(26, band - Math.max(2, band * 0.22)));
+  let cq = 0, cv = 0;
+  buckets.forEach(b => { const q = b.f + b.p + b.n; cq += q; cv += q * b.price; b.cq = cq; b.cv = cv; b.tot = q + b.z; });
+  const qMax = niceMax(Math.max(...buckets.map(b => Math.max(b.tot, b.ghost || 0))) * 1.08);
+  const cMax = niceMax(cv * 1.05);
+  const y1 = q => padT + H1 - q / qMax * H1, top2 = padT + H1 + GAP, y2 = c => top2 + H2 - c / cMax * H2;
+  const u = esc(unitOf(o.asset)), sell = o.side === '賣';
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}" font-size="11" font-family="inherit">`;
+  for (let i = 0; i <= 4; i++) { const y = y1(qMax * i / 4); s += `<line x1="${x0}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="${i ? '#e1e0d9' : '#c3c2b7'}"/><text x="${x0 - 7}" y="${y + 4}" text-anchor="end" fill="#898781">${i ? compact(qMax * i / 4) : '0'}</text>`; }
+  for (let i = 0; i <= 2; i++) { const y = y2(cMax * i / 2); s += `<line x1="${x0}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="${i ? '#e1e0d9' : '#c3c2b7'}"/><text x="${x0 - 7}" y="${y + 4}" text-anchor="end" fill="#898781">${i ? (SYM[ccyFor(o.asset)] || '$') + compact(cMax * i / 2) : '0'}</text>`; }
+  s += `<text x="${x0 - padL + 4}" y="${padT - 12}" fill="#52514e" font-weight="600">每層數量（${u}）</text>`;
+  s += `<text x="${x0 - padL + 4}" y="${top2 - 12}" fill="#52514e" font-weight="600">${sell ? '累計兌現' : '累計花費'}（${ccyFor(o.asset)}，不含暫停）</text>`;
+  const segs = [['f', COL.filled], ['p', COL.placed], ['n', COL.plan], ['z', COL.paused]];
+  buckets.forEach((b, i) => {
+    const cx = x0 + band * (i + 0.5), x = cx - bw / 2;
+    let acc = 0;
+    const present = segs.filter(sg => b[sg[0]] > 0);
+    present.forEach((sg, j) => {
+      const yb = y1(acc), yt = y1(acc + b[sg[0]]);
+      const last = j === present.length - 1;
+      const hgt = Math.max(0, yb - yt - (last ? 0 : 1.5));
+      s += last ? `<path d="${topRound(x, yb - hgt, bw, hgt, 3)}" fill="${sg[1]}"/>` : `<rect x="${x}" y="${yb - hgt}" width="${bw}" height="${hgt}" fill="${sg[1]}"/>`;
+      acc += b[sg[0]];
+    });
+    if (b.ghost !== undefined && b.ghost !== null && Math.abs(b.ghost - b.tot) > 1e-9) {
+      const gy = y1(b.ghost);
+      s += `<line x1="${x - 1}" x2="${x + bw + 1}" y1="${gy}" y2="${gy}" stroke="#1f2328" stroke-width="2" stroke-linecap="round"/>`;
+    }
+  });
+  let path = '';
+  buckets.forEach((b, i) => { path += (i ? 'L' : 'M') + (x0 + band * (i + 0.5)).toFixed(1) + ',' + y2(b.cv).toFixed(1); });
+  const fx = x0 + band * 0.5, lx = x0 + band * (n - 0.5);
+  s += `<path d="${path}L${lx.toFixed(1)},${top2 + H2}L${fx.toFixed(1)},${top2 + H2}Z" fill="#2a78d6" opacity=".1"/><path d="${path}" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round"/>`;
+  s += `<text x="${lx}" y="${y2(cv) - 7}" text-anchor="end" fill="#1c5cab" font-weight="600">${fusd(cv, o.asset)}</text>`;
+  const every = Math.max(1, Math.ceil(n / Math.max(1, pw / (small ? 46 : 58))));
+  buckets.forEach((b, i) => { if (i % every) return; s += `<text x="${x0 + band * (i + 0.5)}" y="${top2 + H2 + 16}" text-anchor="middle" fill="#898781">${compact(b.price)}</text>`; });
+  const posOf = price => {
+    if (!price) return null;
+    const ps = buckets.map(b => b.price), asc = o.side !== '買';
+    if (asc ? price < ps[0] : price > ps[0]) return { x: x0 + 1, e: 'l' };
+    if (asc ? price > ps[n - 1] : price < ps[n - 1]) return { x: x0 + pw - 1, e: 'r' };
+    for (let i = 0; i < n - 1; i++) {
+      const a = ps[i], b = ps[i + 1];
+      if ((asc && price >= a && price <= b) || (!asc && price <= a && price >= b)) return { x: x0 + band * (i + 0.5) + (price - a) / ((b - a) || 1) * band };
+    }
+    return { x: x0 + band * (n - 0.5) };
+  };
+  const mark = (price, color, label, yl) => {
+    const p = posOf(price); if (!p) return '';
+    const anc = p.e === 'r' ? 'end' : p.e === 'l' ? 'start' : 'middle';
+    const tx = anc === 'end' ? p.x - 4 : anc === 'start' ? p.x + 4 : p.x;
+    const txt = (p.e === 'l' ? '← ' : '') + label + ' ' + compact(price) + (p.e === 'r' ? ' →' : '');
+    const bwid = txt.length * 6.6 + 8;
+    const bx = anc === 'end' ? tx - bwid + 4 : anc === 'start' ? tx - 4 : tx - bwid / 2;
+    return `<line x1="${p.x}" x2="${p.x}" y1="${padT - 4}" y2="${top2 + H2}" stroke="${color}" stroke-width="1.5"/>` +
+      `<rect x="${bx}" y="${yl - 11}" width="${bwid}" height="16" rx="3" fill="#fff" opacity=".92"/>` +
+      `<text x="${tx}" y="${yl + 1}" text-anchor="${anc}" fill="${color}" font-weight="600">${txt}</text>`;
+  };
+  s += mark(o.cur, '#1f2328', '現價', padT + 8);
+  if (o.scen) s += mark(o.scen, '#1c5cab', '情境', padT + 26);
+  buckets.forEach((b, i) => { s += `<rect class="hit" data-i="${i}" x="${x0 + band * i}" y="${padT}" width="${band}" height="${top2 + H2 - padT}" fill="transparent"/>`; });
+  s += `<rect class="hb" x="0" y="${padT}" width="${band}" height="${top2 + H2 - padT}" fill="#2a78d6" opacity="0" pointer-events="none"/><circle class="hd" r="4" fill="#2a78d6" stroke="#fff" stroke-width="2" opacity="0" pointer-events="none"/></svg>`;
+  host.innerHTML = s + '<div class="tip"></div>';
+  const svg = host.querySelector('svg'), tip = host.querySelector('.tip'), hb = svg.querySelector('.hb'), hd = svg.querySelector('.hd');
+  const show = i => {
+    const b = buckets[i];
+    hb.setAttribute('x', x0 + band * i); hb.setAttribute('opacity', '.07');
+    hd.setAttribute('cx', x0 + band * (i + 0.5)); hd.setAttribute('cy', y2(b.cv)); hd.setAttribute('opacity', '1');
+    const row = (l, v) => v ? `<div class="r"><span>${l}</span><b>${fq(v, o.asset)}</b></div>` : '';
+    tip.innerHTML = `<div class="h">${fp(b.price, o.asset)} <span style="color:var(--muted);font-weight:400">${o.cur ? fpct(b.price / o.cur - 1) : ''}</span></div>` +
+      row('已成交', b.f) + row((o.labels && o.labels.p) || '已掛單', b.p) + row((o.labels && o.labels.n) || '規劃', b.n) + row('暫停', b.z) +
+      (b.ghost !== undefined && b.ghost !== null && Math.abs(b.ghost - b.tot) > 1e-9 ? `<div class="r"><span>目前掛單簿</span><b>${fq(b.ghost, o.asset)}</b></div>` : '') +
+      `<div class="r"><span>價值</span><b>${fusd((b.f + b.p + b.n + b.z) * b.price, o.asset)}</b></div>` +
+      `<div class="r"><span>${sell ? '漲到這裡累計賣出' : '跌到這裡累計買入'}</span><b>${fq(b.cq, o.asset)}</b></div>` +
+      `<div class="r"><span>累計金額</span><b>${fusd(b.cv, o.asset)}</b></div>`;
+    tip.style.display = 'block';
+    const bx = (x0 + band * (i + 0.5)) / W * host.clientWidth;
+    tip.style.left = Math.max(4, Math.min(host.clientWidth - tip.offsetWidth - 4, bx + 14)) + 'px';
+    tip.style.top = '6px';
+    if (o.onHover) o.onHover(i);
+  };
+  svg.querySelectorAll('.hit').forEach(el => {
+    el.addEventListener('mouseenter', () => show(+el.dataset.i));
+    el.addEventListener('click', () => { show(+el.dataset.i); if (o.onClick) o.onClick(+el.dataset.i); });
+  });
+  svg.addEventListener('mouseleave', () => { tip.style.display = 'none'; hb.setAttribute('opacity', '0'); hd.setAttribute('opacity', '0'); if (o.onHover) o.onHover(-1); });
+}
+
+// ═════════════ 掛單簿 ═════════════
+function vOrders() {
+  const s = A.s, f = A.of, q = f.q.trim().toLowerCase();
+  const base = s.orders.filter(o => inAcct(o) && (f.asset === '全部' || o.asset === f.asset) && (f.side === '全部' || o.side === f.side));
+  const cnt = st => base.filter(o => o.status === st).length;
+  const list = base.filter(o => f.st[o.status] && (!f.hint || o.hint === f.hint) &&
+    (!q || o.id.toLowerCase().indexOf(q) >= 0 || (o.note || '').toLowerCase().indexOf(q) >= 0 || String(o.price).indexOf(q) >= 0));
+  let h = `<h1>掛單簿 <small>${list.length} / ${s.orders.filter(inAcct).length} 張</small><span class="sp"></span><button class="btn" data-act="ordersPdf" ${list.length ? '' : 'disabled'}>⬇ 匯出 PDF</button><button class="btn" data-act="addOrder">＋ 新增掛單</button></h1>
+  <div class="filters">
+    <select data-act="ofAsset"><option value="全部">全部資產</option>${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+    <div class="seg">${['全部', '賣', '買'].map(x => `<button data-act="ofSide" data-v="${x}" class="${f.side === x ? 'on' : ''}">${x === '全部' ? '買＋賣' : x + '單'}</button>`).join('')}</div>
+    <div class="chips">${STATUSES.map(st => `<button class="chipbtn ${f.st[st] ? 'on' : ''}" data-act="ofSt" data-v="${st}">${st}<span class="c">${cnt(st)}</span></button>`).join('')}</div>
+    <select data-act="ofHint"><option value="">全部提示</option>${Object.keys(HINT).map(k => `<option value="${k}" ${f.hint === k ? 'selected' : ''}>${HINT[k]}</option>`).join('')}</select>
+    <input type="text" data-act="ofQ" placeholder="搜尋 ID／價格／備註" value="${esc(f.q)}" style="width:170px">
+  </div>`;
+  if (!list.length) { view().innerHTML = h + '<div class="card empty">沒有符合的掛單</div>'; return; }
+  const groups = [];
+  const gm = {};
+  list.forEach(o => { const k = o.acct + '|' + o.asset + '|' + o.side; if (!gm[k]) { gm[k] = { k: k, acct: o.acct, asset: o.asset, side: o.side, os: [] }; groups.push(gm[k]); } gm[k].os.push(o); });
+  h += `<div class="tw" style="max-height:calc(100vh - 210px)"><table><thead><tr><th class="c"><input type="checkbox" data-act="selAll" ${list.every(o => A.sel.has(o.id)) ? 'checked' : ''}></th>
+    <th class="l">ID</th><th class="c">#</th><th>價格</th><th>距現價</th><th>數量</th><th>價值</th><th class="l">狀態</th><th class="l">提示</th><th class="l">備註</th><th></th></tr></thead><tbody>`;
+  groups.forEach(g => {
+    const n = g.asset, all = s.orders.filter(o => o.acct === g.acct && o.asset === n && o.side === g.side);
+    const c = st => all.filter(o => o.status === st);
+    const openQ = sum(c(ST.PLAN).concat(c(ST.PLACED)), o => o.qty), openV = sum(c(ST.PLAN).concat(c(ST.PLACED)), o => o.val);
+    const coll = A.collapsed[g.k];
+    h += `<tr class="grp"><td class="c"><input type="checkbox" data-act="selGrp" data-k="${esc(g.k)}" ${g.os.every(o => A.sel.has(o.id)) ? 'checked' : ''}></td>
+      <td colspan="10"><span class="tlink" data-act="toggleGrp" data-k="${esc(g.k)}">${coll ? '▸' : '▾'} ${logo(n, 18)} ${esc(n)} · ${g.side}單</span>
+      <span class="gs">${all.length} 張：已成交 ${c(ST.FILLED).length} · 已掛單 ${c(ST.PLACED).length} · 規劃 ${c(ST.PLAN).length}${c(ST.PAUSED).length ? ' · 暫停 ' + c(ST.PAUSED).length : ''}　未成交 ${fq(openQ, n)} ${esc(unitOf(n))}（${fusd(openV, n)}）</span>
+      <span class="tlink small" style="margin-left:10px" data-act="simGo2" data-acct="${esc(g.acct)}" data-asset="${esc(n)}" data-side="${g.side}">用模擬器推演 →</span></td></tr>`;
+    if (coll) return;
+    g.os.forEach(o => {
+      h += `<tr class="${RCLS[o.status]} ${A.sel.has(o.id) ? 'sel' : ''}"><td class="c"><input type="checkbox" data-act="sel" data-id="${esc(o.id)}" ${A.sel.has(o.id) ? 'checked' : ''}></td>
+        <td class="l"><span class="tlink" data-act="editOrder" data-id="${esc(o.id)}">${esc(o.id)}</span></td><td class="c">${o.lvl === null ? '' : o.lvl}</td>
+        <td class="px">${fp(o.price, n)}</td><td>${fpct(o.pct)}</td>
+        <td class="q"><b>${fq(o.qty, n)}</b></td><td>${fusd(o.val, n)}</td><td class="l">${stChip(o)}</td><td class="l">${hintTxt(o)}</td>
+        <td class="l"><input class="in note" data-act="note" data-id="${esc(o.id)}" type="text" value="${esc(o.note)}" placeholder="—"></td>
+        <td><button class="ibtn" data-act="editOrder" data-id="${esc(o.id)}" title="編輯">✎</button></td></tr>`;
+    });
+  });
+  view().innerHTML = h + '</tbody></table></div>';
+}
+
+function renderBatch() {
+  let el = document.querySelector('.batch');
+  if (A.view !== 'orders' || !A.sel.size) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.className = 'batch'; document.body.appendChild(el); }
+  const sel = A.s.orders.filter(o => A.sel.has(o.id));
+  el.innerHTML = `<b>已選 ${sel.length} 張</b>
+    <button class="btn sm" data-act="bSt" data-v="已掛單">已掛單（O）</button>
+    <button class="btn sm primary" data-act="bFill">登記成交…</button>
+    <button class="btn sm" data-act="bSt" data-v="規劃">改回規劃</button>
+    <button class="btn sm" data-act="bSt" data-v="暫停">暫停</button>
+    <button class="btn sm" data-act="bDup">複製為新規劃單</button>
+    <button class="btn sm" data-act="bDel">刪除</button>
+    <button class="btn sm ghost" data-act="bClear">✕</button>`;
+}
+
+// ── 狀態變更流程
+function changeStatus(ids, status) {
+  const os = A.s.orders.filter(o => ids.indexOf(o.id) >= 0 && o.status !== status);
+  if (!os.length) return;
+  if (status === ST.FILLED) return openFill(os.map(o => o.id));
+  const withLog = os.filter(o => o.status === ST.FILLED && o.logId);
+  if (withLog.length) {
+    modal(`<h3>改回「${status}」</h3><p>${withLog.length} 張單原本是已成交，有對應的成交紀錄（${withLog.slice(0, 5).map(o => esc(o.logId)).join('、')}${withLog.length > 5 ? '…' : ''}）。</p>
+      <p class="muted small">如果是誤標成交，請一起刪除成交紀錄；如果只是要讓這個價位再掛一次，建議改用「複製為新規劃單」，保留原本的成交。</p>
+      <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn" data-m="keep">改狀態，保留紀錄</button><button class="btn danger" data-m="del">改狀態並刪除紀錄</button></div>`, act => {
+      if (act === 'keep' || act === 'del') { closeModal(); call('api_setStatus', [os.map(o => o.id), status, { deleteLogs: act === 'del' }], () => { toast(`已改為「${status}」`); render(); }); }
+    });
+    return;
+  }
+  call('api_setStatus', [os.map(o => o.id), status, {}], () => { toast(`已將 ${os.length} 張改為「${status}」`); render(); });
+}
+function openFill(ids) {
+  const os = A.s.orders.filter(o => ids.indexOf(o.id) >= 0 && o.status !== ST.FILLED);
+  if (!os.length) return toast('選取的單都已經是已成交');
+  const st = A.s.settings;
+  let rows = os.map(o => `<tr><td class="l">${esc(o.acct)} ${esc(o.asset)} ${o.side}<br><span class="muted small">${esc(o.id)}</span></td>
+    <td style="white-space:nowrap"><input type="number" step="any" data-f="price" data-id="${esc(o.id)}" value="${rawOrder(o.id).price}" style="width:110px;text-align:right"> <span class="muted small">${nativeCcy(o.asset)}</span></td>
+    <td><input type="number" step="any" data-f="qty" data-id="${esc(o.id)}" value="${o.qty}" style="width:100px;text-align:right"></td></tr>`).join('');
+  modal(`<h3>登記成交（${os.length} 張）</h3>
+    <div class="tw" style="max-height:260px"><table><thead><tr><th class="l">掛單</th><th>成交價（原幣）</th><th>成交數量</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted small">預設帶入設定價與最終數量；部分成交就改數量。</p>
+    <div class="fg"><label>成交時間<input type="datetime-local" id="fTime" value="${toLocalInput()}"></label>
+      <label>手續費率（%）<input type="number" step="any" id="fFee" value="${+(st.feeRate * 100).toFixed(4)}"></label>
+      <label>交易所<input type="text" id="fExch" value="${esc(st.defExch)}"></label>
+      <label>備註<input type="text" id="fNote"></label></div>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">登記成交</button></div>`, act => {
+    if (act !== 'ok') return;
+    const items = os.map(o => ({ id: o.id, price: num($('dlg').querySelector(`[data-f=price][data-id="${o.id}"]`).value), qty: num($('dlg').querySelector(`[data-f=qty][data-id="${o.id}"]`).value) }));
+    const common = { time: fromLocalInput($('fTime').value), feeRate: $('fFee').value, exch: $('fExch').value, note: $('fNote').value };
+    closeModal();
+    call('api_recordFills', [items, common], () => { os.forEach(o => A.sel.delete(o.id)); toast(`已登記 ${items.length} 筆成交`); render(); });
+  });
+}
+function openOrderEdit(id) {
+  const o = A.s.orders.find(x => x.id === id);
+  if (!o) return;
+  modal(`<h3>編輯掛單 ${esc(o.id)} <span class="st ${SCLS[o.status]}" style="cursor:default">${esc(o.status)}</span></h3>
+    <p class="muted small">${esc(o.acct)} · ${esc(o.asset)} · ${o.side}單${o.logId ? '　成交紀錄 ' + esc(o.logId) : ''}</p>
+    <div class="fg"><label>價格（${nativeCcy(o.asset)}）<input type="number" step="any" id="eP" value="${rawOrder(o.id).price}"></label>
+      <label>數量<input type="number" step="any" id="eQ" value="${o.qty === null ? '' : o.qty}"></label>
+      <label class="full">備註<input type="text" id="eN" value="${esc(o.note)}"></label></div>
+    <div class="foot"><button class="btn danger" data-m="del" style="margin-right:auto">刪除</button><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
+    if (act === 'del') {
+      closeModal();
+      confirmBox('刪除掛單 ' + o.id, o.logId ? '這張單有成交紀錄，紀錄會保留在「成交紀錄」。' : '刪除後無法復原。', '刪除', () => call('api_deleteOrders', [[o.id]], () => { toast('已刪除'); render(); }));
+    }
+    if (act !== 'ok') return;
+    const patch = { price: $('eP').value, qty: $('eQ').value, note: $('eN').value };
+    closeModal();
+    call('api_updateOrder', [o.id, patch], () => { toast('已儲存'); render(); });
+  });
+}
+function openAddOrder() {
+  const s = A.s, acct = A.acct;
+  modal(`<h3>新增掛單</h3><div class="fg">
+    <label>帳戶<select id="nAc">${s.settings.accounts.map(a => `<option ${a === acct ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+    <label>資產<select id="nAs">${s.assets.map(a => `<option ${a.name === (A.of.asset !== '全部' ? A.of.asset : A.asset) ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+    <label>方向<select id="nSd"><option>賣</option><option>買</option></select></label>
+    <label>狀態<select id="nSt"><option>規劃</option><option>已掛單</option></select></label>
+    <label>設定價格（<span id="nCcy"></span>）<input type="number" step="any" id="nP"></label>
+    <label>數量<input type="number" step="any" id="nQ"></label>
+    <label class="full">備註<input type="text" id="nN"></label></div>
+    <p class="small muted">要一次產生整組階梯，請用「模擬器」。</p>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">新增</button></div>`, act => {
+    if (act !== 'ok') return;
+    const p = { acct: $('nAc').value, asset: $('nAs').value, side: $('nSd').value, status: $('nSt').value, price: $('nP').value, base: $('nQ').value, note: $('nN').value };
+    if (!(num(p.price) > 0) || !(num(p.base) > 0)) return toast('請填價格與數量', true);
+    closeModal();
+    call('api_addOrder', [p], () => { toast('已新增'); render(); });
+  });
+  const upC = () => { $('nCcy').textContent = nativeCcy($('nAs').value); };
+  $('nAs').onchange = upC; upC();
+}
+
+// ═════════════ 模擬器（推演用；可選擇新增為掛單）═════════════
+function niceRound(x) {
+  if (!(x > 0)) return x;
+  const e = Math.pow(10, Math.floor(Math.log10(x)) - 1);
+  return Math.round(x / e) * e;
+}
+function simDefaults(S) {
+  const cur = S.price, sell = S.side === '賣', hold = S.holding;
+  return {
+    from: cur ? roundTo(niceRound(cur * (sell ? 1.1 : 0.9)), S.pd) : 100,
+    to: cur ? roundTo(niceRound(cur * (sell ? 2 : 0.5)), S.pd) : 200,
+    n: 20, spacing: '等距', ratio: sell ? 3 : 2,
+    amtMode: sell && hold > 0 ? '持倉%' : '金額', amt: sell && hold > 0 ? 50 : 50000, incl: false
+  };
+}
+/** 依目前的掛單估一組最接近的參數（價格區間、張數、間距、倍數、總量） */
+function simFit(S) {
+  const sell = S.side === '賣';
+  let os = S.existing.filter(o => o.status === ST.PLAN || o.status === ST.PLACED), basis = '未成交';
+  if (os.length < 2) { os = S.existing.filter(o => o.status !== ST.PAUSED); basis = '全部'; }
+  const m = {};
+  os.forEach(o => { if (o.price > 0) m[o.price] = (m[o.price] || 0) + (o.qty || 0); });
+  const pts = Object.keys(m).map(Number).sort((a, b) => sell ? a - b : b - a).map(p => ({ p: p, q: m[p] }));
+  const n = pts.length;
+  if (n < 2) return null;
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const cv = a => { const mu = mean(a); return mu ? Math.sqrt(mean(a.map(x => (x - mu) * (x - mu)))) / Math.abs(mu) : 0; };
+  const d = [], lr = [];
+  for (let i = 1; i < n; i++) { d.push(Math.abs(pts[i].p - pts[i - 1].p)); lr.push(Math.abs(Math.log(pts[i].p / pts[i - 1].p))); }
+  const spacing = n >= 3 && cv(lr) < cv(d) ? '等比' : '等距';
+  const xs = pts.map((x, i) => i / (n - 1)), ys = pts.map(x => Math.log(Math.max(x.q, 1e-12)));
+  const mx = mean(xs), my = mean(ys);
+  const slope = xs.reduce((s2, x, i) => s2 + (x - mx) * (ys[i] - my), 0) / xs.reduce((s2, x) => s2 + (x - mx) * (x - mx), 0);
+  const R = Math.min(20, Math.max(0.1, +Math.exp(slope).toFixed(2)));
+  const totQ = sum(pts, x => x.q);
+  const ws = xs.map(t => Math.pow(R, t)), sw = sum(ws, w => w);
+  const err = mean(pts.map((x, i) => x.q > 0 ? Math.abs(totQ * ws[i] / sw - x.q) / x.q : 0));
+  return { p: { from: roundTo(pts[0].p, S.pd), to: roundTo(pts[n - 1].p, S.pd), n: n, spacing: spacing, ratio: R, amtMode: '數量', amt: roundTo(totQ, S.qd), incl: false },
+    info: { n: os.length, basis: basis, err: err } };
+}
+function simLoad() {
+  const S = A.sim, s = A.s, a = A.am[S.asset] || { price: null, qd: 4, pd: 2 };
+  S.price = a.price; S.qd = a.qd; S.pd = a.pd;
+  S.holding = holdingOf(S.asset, S.acct);
+  S.existing = s.orders.filter(o => o.acct === S.acct && o.asset === S.asset && o.side === S.side);
+  const fit = simFit(S);
+  S.fit = fit ? fit.info : null;
+  S.p = fit ? fit.p : simDefaults(S);
+  S.scen = null;
+}
+/** 核心：價格區間 + 張數 + 間距 → 價位；總量 + 倍數 → 每張數量（第 i 張權重 = 倍數^(i/(n−1))） */
+function simCompute() {
+  const S = A.sim, p = S.p, sell = S.side === '賣';
+  const n = Math.max(1, Math.min(200, Math.round(p.n) || 1));
+  const rows = [];
+  let note = '';
+  if (!(p.from > 0) || !(p.to > 0)) return { rows: [], note: '請填價格區間' };
+  const ratio = p.ratio > 0 ? p.ratio : 1;
+  for (let i = 0; i < n; i++) {
+    const t = n > 1 ? i / (n - 1) : 0;
+    const price = roundTo(p.spacing === '等比' ? p.from * Math.pow(p.to / p.from, t) : p.from + (p.to - p.from) * t, S.pd);
+    rows.push({ lvl: i + 1, price: price, w: Math.pow(ratio, t) });
+  }
+  const sw = sum(rows, r => r.w), swp = sum(rows, r => r.w * r.price);
+  let Q = null;
+  if (p.amtMode === '數量') Q = p.amt;
+  else if (p.amtMode === '持倉%') { if (S.holding > 0) Q = S.holding * p.amt / 100; else note = '這個帳戶還沒設定持倉（到「設定 → 持倉」填入），改用數量或金額。'; }
+  rows.forEach(r => {
+    const q = p.amtMode === '金額' ? (p.amt > 0 ? p.amt * r.w / swp : 0) : (Q > 0 ? Q * r.w / sw : 0);
+    r.qty = Math.max(0, roundTo(q, S.qd));
+  });
+  rows.sort((a, b) => sell ? a.price - b.price : b.price - a.price);
+  let cq = 0, cv = 0;
+  rows.forEach(r => { r.val = r.qty * r.price; cq += r.qty; cv += r.val; r.cq = cq; r.cv = cv; r.pct = S.price ? r.price / S.price - 1 : null; });
+  const prices = rows.map(r => r.price);
+  const dup = S.existing.filter(o => prices.indexOf(o.price) >= 0).length;
+  return { rows, note, totQ: cq, totV: cv, dup };
+}
+/** 推演：價格到 X 時（模擬 + 選擇性含既有未成交）會成交多少 */
+function simAt(X) {
+  const S = A.sim, sell = S.side === '賣', v = S.v;
+  const hit = r => sell ? r.price <= X : r.price >= X;
+  let list = v.rows.filter(hit).map(r => ({ q: r.qty, v: r.val }));
+  if (S.p.incl) list = list.concat(S.existing.filter(o => (o.status === ST.PLAN || o.status === ST.PLACED) && hit(o)).map(o => ({ q: o.qty || 0, v: o.val })));
+  const q = sum(list, x => x.q), usd = sum(list, x => x.v);
+  const h = S.holding;
+  const after = h === null ? null : (sell ? h - q : h + q);
+  return { X: X, n: list.length, q: q, usd: usd, avg: q ? usd / q : null, after: after,
+    total: after === null ? null : (sell ? after * X + usd : after * X) };
+}
+function vSim() {
+  const s = A.s;
+  if (!A.sim) { A.sim = { acct: A.acct, asset: A.asset, side: '賣' }; simLoad(); }
+  const S = A.sim;
+  view().innerHTML = `<h1>模擬器 <small>推演一組新的階梯掛單；既有的掛單不會被改動</small></h1>
+  <div class="filters">
+    <div class="chips" id="smAssets">${s.assets.map(a => `<button class="chipbtn ${a.name === S.asset ? 'on' : ''}" data-a="${esc(a.name)}">${logo(a.name, 16)}${esc(a.name)}</button>`).join('')}</div>
+    <div class="seg" id="smSide"><button data-v="賣" class="${S.side === '賣' ? 'on' : ''}">賣出計畫</button><button data-v="買" class="${S.side === '買' ? 'on' : ''}">買入計畫</button></div>
+    <span class="small muted" id="smMeta"></span><span class="sp"></span>
+    <button class="btn primary" id="smAdd">安排為新掛單…</button>
+  </div>
+  <div class="sim">
+    <div class="card simp">
+      <h3>價格區間</h3>
+      <div class="f"><span id="lbFrom">從</span><div class="u"><input type="number" id="sFrom" step="any"><em class="ccyU">USD</em></div></div>
+      <div class="f"><span id="lbTo">到</span><div class="u"><input type="number" id="sTo" step="any"><em class="ccyU">USD</em></div></div>
+      <div class="f"><span>掛幾張</span><input type="number" id="sN" min="1" max="200" step="1"></div>
+      <div class="f"><span>間距</span><div class="seg" id="sSp"><button data-v="等距">等距</button><button data-v="等比">等比</button></div></div>
+      <div class="readout" id="sRangeOut"></div>
+      <h3>總量</h3>
+      <div class="seg" id="sAm" style="margin-bottom:8px"><button data-v="數量">數量</button><button data-v="金額">金額</button><button data-v="持倉%">持倉 %</button></div>
+      <div class="f"><span id="lbAmt">總數量</span><div class="u"><input type="number" id="sAmt" step="any"><em id="sAmtU"></em></div></div>
+      <h3 id="lbShape">分配：越漲賣越多</h3>
+      <div class="f"><span>最後一張是第一張的</span><div class="u"><input type="number" id="sR" step="0.1" min="0.1"><em>倍</em></div></div>
+      <input type="range" id="sRr" min="-1.6" max="2.4" step="0.01" style="width:100%;accent-color:var(--accent)">
+      <div class="chips" style="margin:6px 0">${[1, 1.5, 2, 3, 5, 10].map(x => `<button class="chipbtn" data-r="${x}">${x === 1 ? '平均' : x + '×'}</button>`).join('')}</div>
+      <div class="readout" id="sShapeOut"></div>
+      <h3>推演</h3>
+      <label class="chk"><input type="checkbox" id="sIncl"><span id="sInclL"></span></label>
+      <div class="readout" id="sFitOut"></div>
+      <div class="row mt"><button class="btn sm" id="sReset">↺ 恢復成依目前掛單估算的值</button></div>
+    </div>
+    <div style="min-width:0">
+      <div class="kpis" id="smK"></div>
+      <div class="card mt"><div class="legend" style="margin-bottom:6px" id="smLeg"></div><div class="chart" id="smChart"></div></div>
+      <div class="card mt">
+        <div class="scen"><span><b id="smScL">推演：價格到</b></span><input type="range" id="smR"><input type="number" id="smV" step="any" placeholder="輸入價格"></div>
+        <div class="tw mt"><table id="smScT"></table></div>
+        <p class="small muted" style="margin:8px 0 0" id="smScN"></p>
+      </div>
+      <div class="row mt" style="margin-bottom:6px"><b>每一張的明細</b></div>
+      <div class="tw" style="max-height:380px"><table id="smT"></table></div>
+    </div>
+  </div>`;
+  simWriteForm();
+  simBind();
+  simRender();
+}
+function simWriteForm() {
+  const S = A.sim, p = S.p, sell = S.side === '賣';
+  $('sFrom').value = p.from; $('sTo').value = p.to; $('sN').value = p.n; $('sAmt').value = p.amt;
+  $('sR').value = +(+p.ratio).toFixed(2); $('sRr').value = Math.log(p.ratio > 0 ? p.ratio : 1);
+  $('sIncl').checked = !!p.incl;
+  [...$('sSp').querySelectorAll('button')].forEach(b => b.classList.toggle('on', b.dataset.v === p.spacing));
+  [...$('sAm').querySelectorAll('button')].forEach(b => b.classList.toggle('on', b.dataset.v === p.amtMode));
+  $('lbFrom').textContent = sell ? '從（最低價）' : '從（最高價）';
+  $('lbTo').textContent = sell ? '到（最高價）' : '到（最低價）';
+  $('lbAmt').textContent = p.amtMode === '數量' ? '總數量' : p.amtMode === '金額' ? '總金額' : '持倉的';
+  $('sAmtU').textContent = p.amtMode === '數量' ? unitOf(S.asset) : p.amtMode === '金額' ? ccyFor(S.asset) : '%';
+  document.querySelectorAll('.ccyU').forEach(e => e.textContent = ccyFor(S.asset));
+  $('lbShape').textContent = sell ? '分配：越漲賣越多' : '分配：越跌買越多';
+  const open = S.existing.filter(o => o.status === ST.PLAN || o.status === ST.PLACED);
+  $('sInclL').innerHTML = `把既有未成交的${S.side}單（${open.length} 張、${fq(sum(open, o => o.qty), S.asset)} ${esc(unitOf(S.asset))}）一起算進推演`;
+}
+function simRender() {
+  const S = A.sim, v = S.v = simCompute(), n = S.asset, u = esc(unitOf(n)), sell = S.side === '賣', p = S.p;
+  $('sFitOut').innerHTML = S.fit ? `預設值依目前 <b>${S.fit.n}</b> 張${S.fit.basis === '未成交' ? '未成交' : ''}${S.side}單估算，每張數量平均誤差約 <b>${(S.fit.err * 100).toFixed(1)}%</b>` : '目前沒有這組掛單，用現價推一組預設值';
+  $('smMeta').innerHTML = `${esc(S.acct)}｜現價 <b>${fp(S.price, n)}</b>　持倉 <b>${S.holding === null ? '未設定' : fq(S.holding, n) + ' ' + u}</b>`;
+  const r = v.rows;
+  if (r.length) {
+    const a = r[0], b = r[r.length - 1];
+    $('sRangeOut').innerHTML = `距現價 <b>${fpct(a.pct)}</b> → <b>${fpct(b.pct)}</b><br>每張相差約 ${p.spacing === '等比' ? '<b>' + fpct(r.length > 1 ? Math.pow(b.price / a.price, 1 / (r.length - 1)) - 1 : 0, false) + '</b>' : '<b>' + fp(r.length > 1 ? Math.abs(b.price - a.price) / (r.length - 1) : 0, n) + '</b> ' + ccyFor(S.asset)}`;
+    $('sShapeOut').innerHTML = `第一張 <b>${fq(a.qty, n)}</b> → 最後一張 <b>${fq(b.qty, n)}</b> ${u}<br><span class="muted">小於 1 倍 = ${sell ? '越接近現價賣越多' : '越接近現價買越多'}</span>`;
+  } else { $('sRangeOut').textContent = ''; $('sShapeOut').textContent = ''; }
+  // KPI
+  const avg = v.totQ ? v.totV / v.totQ : null, h = S.holding;
+  $('smK').innerHTML = (v.note ? `<div class="kpi" style="grid-column:1/-1;border-color:#f3dcb3;background:var(--warn-bg);color:var(--warn)">${esc(v.note)}</div>` : '') +
+    kpi(sell ? '總共賣出' : '總共買入', `${fq(v.totQ, n)} <small>${u}</small>`, `${r.length} 張`) +
+    kpi(sell ? '全部成交可兌現' : '全部成交需要資金', fusd(v.totV, n), '') +
+    kpi('平均價格', fp(avg, n), avg && S.price ? '距現價 ' + fpct(avg / S.price - 1) : '') +
+    (h === null ? kpi('占持倉', '—', '到「設定 → 持倉」填入') :
+      sell ? kpi('占持倉', `<span class="${v.totQ > h ? 'down' : ''}">${h > 0 ? fpct(v.totQ / h, false) : '—'}</span>`, v.totQ > h ? `<span class="down">⚠ 比持倉多 ${fq(v.totQ - h, n)}</span>` : `全賣完剩 ${fq(h - v.totQ, n)} ${u}`)
+        : kpi('買完後持倉', fq(h + v.totQ, n), `目前 ${fq(h, n)} ${u}`));
+  // 圖
+  const incl = p.incl;
+  $('smLeg').innerHTML = `<span><i style="background:var(--plan)"></i>模擬的新掛單</span>${incl ? '<span><i style="background:var(--placed)"></i>既有未成交</span>' : ''}<span class="sp"></span><span class="muted">上：每張數量　下：${sell ? '累計兌現' : '累計花費'}</span>`;
+  const m = {};
+  r.forEach(x => { m[x.price] = { price: x.price, f: 0, p: 0, n: x.qty, z: 0 }; });
+  if (incl) S.existing.filter(o => o.status === ST.PLAN || o.status === ST.PLACED).forEach(o => { const b = m[o.price] = m[o.price] || { price: o.price, f: 0, p: 0, n: 0, z: 0 }; b.p += o.qty || 0; });
+  const buckets = Object.values(m).sort((a, b) => sell ? a.price - b.price : b.price - a.price);
+  ladderChart($('smChart'), buckets, { side: S.side, cur: S.price, scen: S.scen, asset: n, labels: { n: '模擬', p: '既有未成交' } });
+  simScen();
+  // 明細
+  let t = `<thead><tr><th class="c">#</th><th>價格</th><th>距現價</th><th>數量</th><th>金額</th><th>${sell ? '累計賣出' : '累計買入'}</th><th>累計金額</th><th>累計均價</th></tr></thead><tbody>`;
+  r.forEach(x => { t += `<tr><td class="c">${x.lvl}</td><td>${fp(x.price, n)}</td><td>${fpct(x.pct)}</td><td><b>${fq(x.qty, n)}</b></td><td>${fusd(x.val, n)}</td><td>${fq(x.cq, n)}</td><td>${fusd(x.cv, n)}</td><td>${fp(x.cq ? x.cv / x.cq : null, n)}</td></tr>`; });
+  $('smT').innerHTML = r.length ? t + '</tbody>' : '<tr><td class="empty">請填價格區間</td></tr>';
+}
+function simScen() {
+  const S = A.sim, v = S.v, n = S.asset, sell = S.side === '賣', r = v.rows;
+  if (!r.length) { $('smScT').innerHTML = ''; return; }
+  const ps = r.map(x => x.price).concat(S.price ? [S.price] : []);
+  const lo = Math.min(...ps) * 0.97, hi = Math.max(...ps) * 1.03, rg = $('smR');
+  rg.min = lo; rg.max = hi; rg.step = (hi - lo) / 1000; rg.value = S.scen || (sell ? r[r.length - 1].price : r[r.length - 1].price);
+  if (document.activeElement !== $('smV')) $('smV').value = S.scen ? roundTo(S.scen, S.pd) : '';
+  $('smScL').textContent = sell ? '推演：漲到' : '推演：跌到';
+  // 里程碑：區間的 1/4、1/2、3/4、終點，再加上自訂價格
+  const pick = f => r[Math.min(r.length - 1, Math.max(0, Math.round((r.length - 1) * f)))].price;
+  const pts = [pick(0.25), pick(0.5), pick(0.75), pick(1)].filter((x, i, a) => a.indexOf(x) === i);
+  const rows = pts.map(x => ({ x: x, mine: false })).concat(S.scen ? [{ x: S.scen, mine: true }] : [])
+    .sort((a, b) => sell ? a.x - b.x : b.x - a.x);
+  const h = S.holding;
+  let t = `<thead><tr><th class="l">價格</th><th>${sell ? '漲幅' : '跌幅'}</th><th>成交張數</th><th>${sell ? '累計賣出' : '累計買入'}</th><th>${sell ? '兌現金額' : '花費金額'}</th><th>均價</th>${h !== null ? `<th>${sell ? '剩餘持倉' : '買後持倉'}</th><th>${sell ? '持倉價值＋兌現' : '持倉價值'}</th>` : ''}</tr></thead><tbody>`;
+  rows.forEach(o => {
+    const a = simAt(o.x);
+    t += `<tr${o.mine ? ' style="background:var(--accent-wash)"' : ''}><td class="l"><b>${fp(o.x, n)}</b>${o.mine ? ' <span class="small" style="color:var(--accent-ink)">自訂</span>' : ''}</td><td>${fpct(S.price ? o.x / S.price - 1 : null)}</td><td>${a.n}</td>
+      <td>${fq(a.q, n)}</td><td>${fusd(a.usd, n)}</td><td>${fp(a.avg, n)}</td>${h !== null ? `<td class="${a.after < 0 ? 'down' : ''}">${fq(a.after, n)}</td><td>${fusd(a.total, n)}</td>` : ''}</tr>`;
+  });
+  $('smScT').innerHTML = t + '</tbody>';
+  $('smScN').textContent = (S.p.incl ? '含既有未成交掛單。' : '只算模擬的新掛單。') + (h === null ? '設定持倉後可以看到剩餘持倉與總價值。' : sell ? '「持倉價值＋兌現」= 剩餘持倉 × 該價格 ＋ 已兌現的現金。' : '');
+}
+function simBind() {
+  const S = A.sim;
+  const reload = () => { simLoad(); vSim(); };
+  $('smAssets').onclick = e => { const b = e.target.closest('[data-a]'); if (!b) return; S.asset = b.dataset.a; reload(); };
+  $('smSide').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.side = b.dataset.v; reload(); };
+  const upd = () => simRender();
+  let t = null;
+  const num2 = (id, k) => $(id).addEventListener('input', () => { const v = num($(id).value); if (v !== null) S.p[k] = v; clearTimeout(t); t = setTimeout(upd, 150); });
+  num2('sFrom', 'from'); num2('sTo', 'to'); num2('sN', 'n'); num2('sAmt', 'amt');
+  $('sR').addEventListener('input', () => { const v = num($('sR').value); if (v > 0) { S.p.ratio = v; $('sRr').value = Math.log(v); clearTimeout(t); t = setTimeout(upd, 120); } });
+  $('sRr').addEventListener('input', () => { S.p.ratio = +Math.exp(+$('sRr').value).toFixed(2); $('sR').value = S.p.ratio; clearTimeout(t); t = setTimeout(upd, 60); });
+  $('sSp').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.p.spacing = b.dataset.v; simWriteForm(); upd(); };
+  $('sAm').onclick = e => {
+    const b = e.target.closest('button'); if (!b || b.dataset.v === S.p.amtMode) return;
+    // 切換單位時換算成差不多的量，數字不要跳太大
+    const cur = S.v || simCompute(), mode = b.dataset.v;
+    if (mode === '數量') S.p.amt = roundTo(cur.totQ || 1, S.qd);
+    else if (mode === '金額') S.p.amt = Math.round(cur.totV || 10000);
+    else S.p.amt = S.holding > 0 && cur.totQ ? +(cur.totQ / S.holding * 100).toFixed(1) : 50;
+    S.p.amtMode = mode; simWriteForm(); upd();
+  };
+  document.querySelectorAll('.simp [data-r]').forEach(b => b.onclick = () => { S.p.ratio = +b.dataset.r; simWriteForm(); upd(); });
+  $('sIncl').onchange = () => { S.p.incl = $('sIncl').checked; upd(); };
+  $('sReset').onclick = () => { simLoad(); vSim(); };
+  $('smR').addEventListener('input', e => { S.scen = Number(e.target.value); $('smV').value = roundTo(S.scen, S.pd); simScen(); ladderChartRefresh(); });
+  $('smV').addEventListener('change', e => { const v = num(e.target.value); S.scen = v > 0 ? v : null; simScen(); ladderChartRefresh(); });
+  $('smAdd').onclick = simAddConfirm;
+}
+function ladderChartRefresh() { simRender(); }
+function simAddConfirm() {
+  const S = A.sim, v = S.v, n = S.asset;
+  if (!v.rows.length || !v.totQ) return toast('先設定價格區間與總量', true);
+  const first = v.rows[0], last = v.rows[v.rows.length - 1];
+  const old = S.existing.filter(o => o.status !== ST.FILLED), filled = S.existing.filter(o => o.status === ST.FILLED);
+  const c = st => old.filter(o => o.status === st).length;
+  modal(`<h3>套用到掛單簿</h3>
+    <p><b>${esc(S.acct)} · ${logo(n, 16)} ${esc(n)} · ${S.side}單</b>：模擬的 <b>${v.rows.length}</b> 張（${fp(first.price, n)} → ${fp(last.price, n)}，共 ${fq(v.totQ, n)} ${esc(unitOf(n))}、${fusd(v.totV, n)}）</p>
+    <p style="margin:12px 0 6px"><b>請選擇套用方式：</b></p>
+    <label class="chk" style="border:1px solid var(--line);border-radius:8px;padding:10px"><input type="radio" name="aMode" value="add">
+      <span><b>外加</b>：保留這組現有的 ${old.length} 張未成交掛單，<b>另外新增</b>這 ${v.rows.length} 張。<br>
+      ${v.dup ? `<span class="muted">有 ${v.dup} 個價位和現有掛單相同：</span><label style="display:inline-flex;gap:5px;align-items:center"><input type="checkbox" id="aSkip" checked>略過相同價位</label>` : '<span class="muted">價位沒有重複。</span>'}</span></label>
+    <label class="chk" style="border:1px solid #f0c6c2;border-radius:8px;padding:10px;background:#fffafa"><input type="radio" name="aMode" value="replace">
+      <span><b style="color:var(--bad)">取代</b>：<b>先刪除</b>這組現有的 ${old.length} 張未成交掛單（規劃 ${c(ST.PLAN)}、已掛單 ${c(ST.PLACED)}、暫停 ${c(ST.PAUSED)}），再新增這 ${v.rows.length} 張。<br>
+      <span class="muted">已成交的 ${filled.length} 張與成交紀錄會保留。</span></span></label>
+    <div id="aRepWarn" style="display:none"><div class="note-box">⚠ 這會刪除 ${old.length} 張現有掛單，無法復原。${c(ST.PLACED) ? `其中 <b>${c(ST.PLACED)} 張已經掛在交易所</b>，請記得自己到交易所撤單。` : ''}</div>
+      <label class="chk"><input type="checkbox" id="aSure"><span>我確認要刪除這 ${old.length} 張現有掛單</span></label></div>
+    <div class="fg mt"><label>新掛單的狀態<select id="aSt"><option>規劃</option><option>已掛單</option></select></label>
+      <label>備註<input type="text" id="aNote" value="模擬 ${toLocalInput().slice(0, 10)}"></label></div>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok" id="aOk" disabled>請先選擇套用方式</button></div>`, act => {
+    if (act !== 'ok') return;
+    const mode = (document.querySelector('input[name=aMode]:checked') || {}).value;
+    if (!mode || (mode === 'replace' && !$('aSure').checked)) return;
+    const payload = { acct: S.acct, asset: n, side: S.side, mode: mode, status: $('aSt').value, note: $('aNote').value,
+      skipDup: mode === 'add' && $('aSkip') ? $('aSkip').checked : false, levels: v.rows.map(r => ({ price: roundTo(toNative(r.price, n), rawAsset(n).pd), qty: r.qty })) };
+    closeModal();
+    call('api_addOrders', [payload], () => { toast(mode === 'replace' ? `✅ 已取代：刪除 ${old.length} 張、新增 ${v.rows.length} 張` : '✅ 已外加到掛單簿'); simLoad(); vSim(); });
+  });
+  const sync = () => {
+    if (!$('aRepWarn')) { $('dlg').removeEventListener('change', sync); return; }   // 視窗已經換成別的
+    const mode = (document.querySelector('input[name=aMode]:checked') || {}).value, ok = $('aOk');
+    $('aRepWarn').style.display = mode === 'replace' ? '' : 'none';
+    if (!mode) { ok.disabled = true; ok.textContent = '請先選擇套用方式'; ok.className = 'btn primary'; return; }
+    if (mode === 'add') { ok.disabled = false; ok.textContent = `確認外加 ${v.rows.length} 張`; ok.className = 'btn primary'; return; }
+    ok.disabled = !$('aSure').checked; ok.textContent = `確認刪除 ${old.length} 張並新增 ${v.rows.length} 張`; ok.className = 'btn danger';
+  };
+  $('dlg').addEventListener('change', sync);
+}
+
+// ═════════════ 成交紀錄 ═════════════
+function vTrades() {
+  const s = A.s, f = A.tf;
+  const list = s.trades.filter(t => inAcct(t) && (f.asset === '全部' || t.asset === f.asset) && (f.side === '全部' || t.side === f.side))
+    .sort((a, b) => (b.time || 0) - (a.time || 0) || (b.id > a.id ? 1 : -1));
+  let h = `<h1>成交紀錄 <small>${list.length} 筆</small><span class="sp"></span><button class="btn" data-act="addTrade">＋ 新增成交</button></h1>
+  <div class="filters"><select data-act="tfAsset"><option value="全部">全部資產</option>${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+  <div class="seg">${['全部', '賣', '買'].map(x => `<button data-act="tfSide" data-v="${x}" class="${f.side === x ? 'on' : ''}">${x === '全部' ? '買＋賣' : x === '賣' ? '賣出' : '買入'}</button>`).join('')}</div></div>`;
+  const assets = s.assets.filter(a => list.some(t => t.asset === a.name));
+  if (assets.length) {
+    h += '<div class="kpis" style="margin-bottom:12px">';
+    assets.forEach(a => {
+      const ts = list.filter(t => t.asset === a.name), se = ts.filter(t => t.side === '賣'), bu = ts.filter(t => t.side === '買');
+      const sq = sum(se, t => t.qty), sv = sum(se, t => t.amt), bq = sum(bu, t => t.qty), bv = sum(bu, t => t.amt), fee = sum(ts, t => t.fee);
+      h += `<div class="kpi"><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　手續費 ${fusd(fee, a.name)}</div>
+        <div class="kv" style="margin-top:4px"><span>賣出</span><b>${fq(sq, a.name)}<small>${fusd(sv, a.name)}</small></b><span>賣出均價</span><b>${sq ? fp(sv / sq, a.name) : '—'}</b>
+        <span>買入</span><b>${fq(bq, a.name)}<small>${fusd(bv, a.name)}</small></b><span>買入均價</span><b>${bq ? fp(bv / bq, a.name) : '—'}</b>
+        <span>淨現金流</span><b class="${sv - bv - fee >= 0 ? 'up' : 'down'}">${fusd(sv - bv - fee, a.name)}</b></div></div>`;
+    });
+    h += '</div>';
+  }
+  if (!list.length) { view().innerHTML = h + '<div class="card empty">還沒有成交紀錄</div>'; return; }
+  h += `<div class="tw" style="max-height:calc(100vh - 300px)"><table><thead><tr><th class="l">ID</th><th class="l">成交時間</th><th class="l">帳戶</th><th class="l">資產</th><th class="c">方向</th><th>成交價</th><th>數量</th><th>金額</th><th>手續費</th><th class="l">交易所</th><th class="l">對應掛單</th><th class="l">備註</th></tr></thead><tbody>`;
+  list.forEach(t => {
+    h += `<tr style="cursor:pointer" data-act="editTrade" data-id="${esc(t.id)}"><td class="l tlink">${esc(t.id)}</td><td class="l">${t.time ? fdate(t.time) : '<span class="muted">2026 以前</span>'}</td>
+      <td class="l">${esc(t.acct)}</td><td class="l">${logo(t.asset, 16)} ${esc(t.asset)}</td><td class="c">${esc(t.side)}</td><td>${fp(t.price, t.asset)}</td><td>${fq(t.qty, t.asset)}</td>
+      <td>${fusd(t.amt, t.asset)}</td><td>${t.fee === null ? '' : fusd(t.fee, t.asset)}</td><td class="l">${esc(t.exch)}</td><td class="l">${esc(t.oid)}</td><td class="l muted" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">${esc(t.note)}</td></tr>`;
+  });
+  view().innerHTML = h + '</tbody></table></div>';
+}
+function openTrade(id) {
+  const s = A.s, t = id ? A.raw.trades.find(x => x.id === id) : null;
+  const acct = t ? t.acct : A.acct;
+  const asset = t ? t.asset : (A.tf.asset !== '全部' ? A.tf.asset : A.asset);
+  modal(`<h3>${t ? '編輯成交紀錄 ' + esc(t.id) : '新增成交紀錄'}</h3>
+    ${t && t.oid ? `<p class="muted small">對應掛單 ${esc(t.oid)}</p>` : '<p class="muted small">不在掛單簿裡的交易（例如市價單）也可以記在這裡。</p>'}
+    <div class="fg"><label>帳戶<select id="tA">${s.settings.accounts.map(a => `<option ${a === acct ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+      <label>資產<select id="tS">${s.assets.map(a => `<option ${a.name === asset ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+      <label>方向<select id="tD"><option ${t && t.side === '買' ? 'selected' : ''}>買</option><option ${t && t.side === '賣' ? 'selected' : ''}>賣</option></select></label>
+      <label>成交時間${t && !t.time ? '<span class="muted">（空白 = 2026 以前）</span>' : ''}<input type="datetime-local" id="tT" value="${t ? (t.time ? toLocalInput(t.time) : '') : toLocalInput()}"></label>
+      <label>成交價（<span class="tCcy"></span>）<input type="number" step="any" id="tP" value="${t ? t.price : ''}"></label>
+      <label>數量<input type="number" step="any" id="tQ" value="${t ? t.qty : ''}"></label>
+      <label>手續費（<span class="tCcy"></span>）<input type="number" step="any" id="tF" value="${t && t.fee !== null ? t.fee : ''}"></label>
+      <label>交易所<input type="text" id="tE" value="${esc(t ? t.exch : s.settings.defExch)}"></label>
+      <label class="full">備註<input type="text" id="tN" value="${esc(t ? t.note : '')}"></label></div>
+    <div class="foot">${t ? '<button class="btn danger" data-m="del" style="margin-right:auto">刪除</button>' : ''}<button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
+    if (act === 'del') {
+      closeModal();
+      confirmBox('刪除成交紀錄 ' + t.id, t.oid ? `對應的掛單 ${esc(t.oid)} 會從「已成交」改回「已掛單」。` : '刪除後無法復原。', '刪除', () => call('api_deleteTrade', [t.id], () => { toast('已刪除'); render(); }));
+      return;
+    }
+    if (act !== 'ok') return;
+    const rec = { id: t ? t.id : '', acct: $('tA').value, asset: $('tS').value, side: $('tD').value, time: fromLocalInput($('tT').value),
+      price: $('tP').value, qty: $('tQ').value, fee: $('tF').value, exch: $('tE').value, note: $('tN').value };
+    if (!(num(rec.price) > 0) || !(num(rec.qty) > 0)) return toast('請填成交價與數量', true);
+    closeModal();
+    call('api_saveTrade', [rec], () => { toast('已儲存'); render(); });
+  });
+  const upC = () => document.querySelectorAll('#dlg .tCcy').forEach(e => e.textContent = nativeCcy($('tS').value));
+  $('tS').onchange = upC; upC();
+}
+
+// ═════════════ 持倉（在設定頁）═════════════
+function holdSection() {
+  const s = A.s;
+  const rows = s.holdings.slice();
+  const have = new Set(s.holdings.map(h => h.acct + '|' + h.asset));
+  const missing = [];
+  s.orders.forEach(o => { const k = o.acct + '|' + o.asset; if (!have.has(k) && missing.indexOf(k) < 0) missing.push(k); });
+  let h = `<h2 style="margin-top:4px">持倉 <small class="muted" style="font-weight:400">基準持倉 + 之後登記的成交 = 估計目前持倉</small></h2>
+  <div class="small muted" style="margin-bottom:8px">在「基準持倉量」填你在交易所看到的實際數量，按 Enter 或離開欄位就會儲存，並把基準時間設成現在。之後登記的買入會加、賣出會減。2026 以前的原表成交（沒有日期）不會影響持倉。</div>`;
+  h += `<div class="tw"><table><thead><tr><th class="l">帳戶</th><th class="l">資產</th><th>基準持倉量</th><th class="l">基準時間</th><th>之後買入</th><th>之後賣出</th><th>估計目前持倉</th><th>現價</th><th>持倉價值</th><th>未成交賣單</th><th>未成交買單</th><th>全部成交後</th><th></th></tr></thead><tbody>`;
+  if (!rows.length) h += '<tr><td colspan="13" class="empty">還沒有持倉資料</td></tr>';
+  rows.forEach(r => {
+    const a = A.am[r.asset] || {}, n = r.asset;
+    const sS = sideStats(n, '賣', o => o.acct === r.acct), sB = sideStats(n, '買', o => o.acct === r.acct);
+    h += `<tr><td class="l">${esc(r.acct)}</td><td class="l">${logo(n, 16)} <b>${esc(n)}</b></td>
+      <td><input class="in" style="border-color:var(--line);background:${r.qty === null ? 'var(--plan-bg)' : '#fff'};width:120px" data-act="holdQty" data-acct="${esc(r.acct)}" data-asset="${esc(n)}" type="number" step="any" value="${r.qty === null ? '' : r.qty}" placeholder="填入持倉"></td>
+      <td class="l"><span class="tlink" data-act="holdTime" data-acct="${esc(r.acct)}" data-asset="${esc(n)}">${r.time ? fdate(r.time) : '設定'}</span></td>
+      <td>${r.buy ? '+' + fq(r.buy, n) : ''}</td><td>${r.sell ? '−' + fq(r.sell, n) : ''}</td>
+      <td><b>${r.est === null ? '—' : fq(r.est, n)}</b></td><td>${fp(a.price, n)}</td><td>${r.est !== null && a.price ? fusd(r.est * a.price, n) : '—'}</td>
+      <td>${fq(sS.openQ, n)}</td><td>${fq(sB.openQ, n)}</td><td>${r.est !== null ? fq(r.est - sS.openQ + sB.openQ, n) : '—'}</td>
+      <td><button class="ibtn" data-act="holdDel" data-acct="${esc(r.acct)}" data-asset="${esc(n)}" title="移除">✕</button></td></tr>`;
+  });
+  h += '</tbody></table></div>';
+  h += `<div class="card mt"><h2>新增持倉列</h2><div class="row">
+    <select id="hA">${s.settings.accounts.map(a => `<option>${esc(a)}</option>`).join('')}</select>
+    <select id="hS">${s.assets.map(a => `<option>${esc(a.name)}</option>`).join('')}</select>
+    <input type="number" step="any" id="hQ" placeholder="持倉量" style="width:140px"><button class="btn" data-act="holdAdd">新增</button></div>
+    ${missing.length ? `<p class="small muted" style="margin-bottom:0">有掛單但還沒有持倉列：${missing.map(k => esc(k.replace('|', ' '))).join('、')}</p>` : ''}</div>`;
+  return h;
+}
+function openHoldTime(acct, asset) {
+  const r = A.s.holdings.find(x => x.acct === acct && x.asset === asset);
+  modal(`<h3>基準時間：${esc(acct)} ${esc(asset)}</h3><p class="small muted">基準持倉量是「這個時間點」的實際持倉；晚於這個時間的成交才會加減。</p>
+    <div class="fg"><label class="full">基準時間<input type="datetime-local" id="hT" value="${toLocalInput(r && r.time)}"></label></div>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
+    if (act !== 'ok') return;
+    const t = fromLocalInput($('hT').value);
+    closeModal();
+    call('api_saveHolding', [{ acct: acct, asset: asset, time: t }], () => { toast('已儲存'); render(); });
+  });
+}
+
+// ═════════════ 設定 ═════════════
+function vSettings() {
+  const s = A.s, st = s.settings;
+  const cnt = (list, a) => list.filter(x => x.acct === a).length;
+  let h = `<h1>設定</h1>${syncCard()}<div class="grid g2${GAS ? '' : ' mt'}">
+  <div class="card"><h2>帳戶</h2>
+    <div class="tw"><table><thead><tr><th class="l">名稱</th><th>掛單</th><th>成交紀錄</th><th>持倉列</th><th></th></tr></thead><tbody>
+    ${st.accounts.map(a => `<tr><td class="l"><b>${esc(a)}</b>${a === A.acct ? ' <span class="pending" style="background:var(--accent-wash);color:var(--accent-ink)">目前</span>' : ''}</td>
+      <td>${cnt(s.orders, a)}</td><td>${cnt(s.trades, a)}</td><td>${cnt(s.holdings, a)}</td>
+      <td style="white-space:nowrap">${a === A.acct ? '' : `<button class="btn sm" data-act="acctUse" data-a="${esc(a)}">切換</button> `}<button class="btn sm" data-act="acctRen" data-a="${esc(a)}">改名</button> <button class="btn sm danger" data-act="acctDel" data-a="${esc(a)}" ${st.accounts.length <= 1 ? 'disabled' : ''}>刪除</button></td></tr>`).join('')}
+    </tbody></table></div>
+    <div class="row mt"><input type="text" id="newAcct" placeholder="新帳戶名稱" style="flex:1;min-width:120px"><button class="btn" data-act="acctAdd">＋ 新增帳戶</button></div></div>
+  <div class="card"><h2>策略筆記 <small class="muted" style="font-weight:400">${esc(A.acct)} 專屬</small></h2><textarea id="sNotes" rows="10" placeholder="寫下這個帳戶的策略、目標…">${esc(st.notes[A.acct] || '')}</textarea>
+    <div class="foot"><button class="btn primary" data-act="saveNotes">儲存筆記</button></div></div></div>
+  <div class="mt">${holdSection()}</div>
+  <div class="card mt"><h2>一般</h2><div class="fg">
+    <label>提醒門檻（距現價 ±%）<input type="number" step="any" id="sAl" value="${+(st.alertPct * 100).toFixed(4)}"></label>
+    <label>預設手續費率（%）<input type="number" step="any" id="sFee" value="${+(st.feeRate * 100).toFixed(4)}"></label>
+    <label class="full">預設交易所<input type="text" id="sEx" value="${esc(st.defExch)}"></label></div>
+    <div class="foot"><button class="btn primary" data-act="saveGen">儲存</button></div></div>`;
+  const ai = s.ai || {};
+  h += `<div class="card mt" id="aiCard"><h2>AI 診斷</h2>
+    <p class="small muted" style="margin-top:0">資產頁的「🤖 AI 診斷」會把<b>目前帳戶、該資產</b>的掛單、持倉、成交摘要與策略筆記送到 Anthropic 的 Claude，搭配網路搜尋最近的市場、總經與科技消息，產生判斷與建議。需要你自己的 Anthropic API Key（在 Claude Console 建立，依用量計費）。<br>
+    Key 只存在這份腳本的「使用者屬性」裡（你的 Google 帳號專屬，不在試算表裡），儲存後不會再顯示完整內容。</p>
+    <div class="fg">
+      <label class="full">Anthropic API Key ${ai.hasKey ? `<span class="small" style="color:var(--good,#0b6b48)">✓ 已設定（${esc(ai.hint)}）</span>` : '<span class="small muted">尚未設定</span>'}
+        <input type="password" id="aiKey" autocomplete="off" placeholder="${ai.hasKey ? '要更換才需要重新貼上' : 'sk-ant-…'}"></label>
+      <label>模型<select id="aiModel">${(ai.models || []).map(m => `<option value="${esc(m[0])}" ${m[0] === ai.model ? 'selected' : ''}>${esc(m[1])}</option>`).join('')}</select></label>
+      <label>網路搜尋<select id="aiSearch"><option value="1" ${ai.search ? 'selected' : ''}>開（搜尋最新消息，最多 3 次）</option><option value="0" ${ai.search ? '' : 'selected'}>關（只看你的資料，較快）</option></select></label>
+    </div>
+    <div class="foot">${ai.hasKey ? '<button class="btn danger" data-act="aiClear" style="margin-right:auto">移除 Key</button>' : ''}<button class="btn primary" data-act="aiSave">儲存 AI 設定</button></div></div>`;
+  h += `<div class="card mt"><h2>資產與現價<span class="sp"></span><button class="btn sm" data-act="refresh">↻ 更新現價</button></h2>
+    <p class="small muted" style="margin-top:0">現價優先順序：手動價格 ＞ CoinGecko（約 3 分鐘更新）＞ GOOGLEFINANCE。CoinGecko ID 例如 bitcoin、ethereum、cardano、solana；美股用 GOOGLEFINANCE 代碼，例如 NASDAQ:MSTR；也可以寫運算式，例如 GOOGLEFINANCE("TPE:2330")*1000（以「張」計價）。<br>計價幣別：每個資產的價格、掛單與成交都以它的「計價幣別」記錄（加密貨幣通常是 USD）。右上角可以切換用 原幣／USD／人民幣／台幣 顯示：現價與掛單用最新匯率換算，成交紀錄用成交日附近的匯率換算（沒有日期的用最新匯率）。${(() => { const fx = A.raw.fx && A.raw.fx.latest; return fx ? `目前匯率：1 USD ＝ ${nf(fx.CNY, 4)} CNY ＝ ${nf(fx.TWD, 3)} TWD ＝ ${nf(fx.HKD, 4)} HKD（${esc(fx.date || '')}${fx.stale ? '，暫時抓不到新資料，使用上次的匯率' : ''}）。` : '<b>目前抓不到匯率</b>，切換幣別會暫時以原幣顯示。'; })()}</p>
+    <div class="tw"><table><thead><tr><th class="l">資產</th><th class="l">GOOGLEFINANCE 代碼</th><th class="l">CoinGecko ID</th><th>手動價格</th><th>數量小數位</th><th>價格小數位</th><th class="l">計價幣別</th><th class="l">數量單位</th><th class="l">圖示網址（選填）</th><th class="l">備註</th><th>目前現價</th><th></th></tr></thead><tbody id="asBody">`;
+  A.raw.assets.forEach((a, i) => { h += assetRow(a, i); });
+  h += `</tbody></table></div><div class="foot"><button class="btn" data-act="addAsset" style="margin-right:auto">＋ 新增資產</button><button class="btn primary" data-act="saveAssets">儲存資產設定</button></div></div>`;
+  view().innerHTML = h;
+}
+function acctRename(a) {
+  modal(`<h3>帳戶改名</h3><p class="small muted">「${esc(a)}」的掛單、成交紀錄、持倉與筆記都會一起改成新名稱。</p>
+    <div class="fg"><label class="full">新名稱<input type="text" id="rnName" value="${esc(a)}" maxlength="20"></label></div>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">改名</button></div>`, act => {
+    if (act !== 'ok') return;
+    const nn = $('rnName').value.trim();
+    if (!nn || nn === a) return closeModal();
+    closeModal();
+    const wasCurrent = A.acct === a;
+    call('api_renameAccount', [a, nn], () => { if (wasCurrent) { A.acct = nn; setState(A.raw); if (A.sim) { A.sim.acct = nn; simLoad(); } } toast(`已改名為「${nn}」`); render(); });
+  });
+}
+function acctDelete(a) {
+  const s = A.s, n1 = s.orders.filter(x => x.acct === a).length, n2 = s.trades.filter(x => x.acct === a).length, n3 = s.holdings.filter(x => x.acct === a).length;
+  const hasNote = (s.settings.notes[a] || '').trim() !== '';
+  modal(`<h3 style="color:var(--bad)">刪除帳戶「${esc(a)}」</h3>
+    <p>會一併<b>永久刪除</b>這個帳戶的：</p>
+    <ul style="color:var(--ink2);padding-left:18px"><li>${n1} 張掛單</li><li>${n2} 筆成交紀錄</li><li>${n3} 列持倉</li><li>${hasNote ? '策略筆記' : '策略筆記（目前是空的）'}</li></ul>
+    <div class="note-box">⚠ 刪除後無法復原。如果只是不想看到，可以不要切換到這個帳戶。</div>
+    <label class="chk"><input type="checkbox" id="delSure"><span>我確認要刪除「${esc(a)}」與上面所有資料</span></label>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn danger" data-m="ok" id="delOk" disabled>刪除帳戶</button></div>`, act => {
+    if (act !== 'ok' || !$('delSure').checked) return;
+    closeModal();
+    call('api_deleteAccount', [a], () => { toast(`已刪除帳戶「${a}」`); render(); });
+  });
+  $('delSure').onchange = () => { $('delOk').disabled = !$('delSure').checked; };
+}
+function assetRow(a, i) {
+  return `<tr data-i="${i}"><td class="l" style="white-space:nowrap">${a.name ? logo(a.name, 18) : ''} <input class="in" style="width:110px;text-align:left;border-color:var(--line);background:#fff" data-f="name" value="${esc(a.name)}"></td>
+    <td class="l"><input class="in" style="width:160px;text-align:left;border-color:var(--line);background:#fff" data-f="gf" value="${esc(a.gf)}" title="${esc(a.gf)}"></td>
+    <td class="l"><input class="in" style="width:120px;text-align:left;border-color:var(--line);background:#fff" data-f="cg" value="${esc(a.cg)}"></td>
+    <td><input class="in" style="width:100px;border-color:var(--line);background:#fff" data-f="manual" type="number" step="any" value="${a.manual === null || a.manual === undefined ? '' : a.manual}"></td>
+    <td><input class="in" style="width:60px;border-color:var(--line);background:#fff" data-f="qd" type="number" step="1" value="${a.qd}"></td>
+    <td><input class="in" style="width:60px;border-color:var(--line);background:#fff" data-f="pd" type="number" step="1" value="${a.pd}"></td>
+    <td class="l"><select data-f="ccy" style="height:28px" ${a.name && A.raw && (A.raw.orders.some(o => o.asset === a.name) || A.raw.trades.some(t => t.asset === a.name)) ? 'disabled title="已有掛單或成交紀錄，不能改計價幣別"' : ''}>${['USD', 'CNY', 'TWD', 'HKD'].map(c => `<option value="${c}" ${(a.ccy || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></td>
+    <td class="l"><input class="in" style="width:56px;text-align:left;border-color:var(--line);background:#fff" data-f="unit" value="${esc(a.unit || '')}" placeholder="${esc(a.name || '')}"></td>
+    <td class="l"><input class="in" style="width:150px;text-align:left;border-color:var(--line);background:#fff" data-f="logo" value="${esc(a.logo || '')}" placeholder="https:&#47;&#47;…png"></td>
+    <td class="l"><input class="in" style="width:150px;text-align:left;border-color:var(--line);background:#fff" data-f="note" value="${esc(a.note)}"></td>
+    <td>${a.price ? nf(a.price, a.pd) + ` <span class="muted small">${esc(a.ccy || 'USD')} · ${esc(a.source)}</span>` : '<span class="muted">—</span>'}</td>
+    <td><button class="ibtn" data-act="delAsset" title="移除">✕</button></td></tr>`;
+}
+
+// ═════════════ AI 診斷 ═════════════
+const AI = { busy: {}, list: {}, err: {} };
+function mdInline(t, nSrc) {
+  // t 已經 escape 過
+  return t
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\[(\d{1,2})\]/g, (m, n) => (+n >= 1 && +n <= nSrc) ? `<sup class="cite">[${n}]</sup>` : m);
+}
+function md(src, nSrc) {
+  const L = esc(src || '').replace(/\r/g, '').split('\n');
+  let h = '', list = null, para = [];
+  const flushP = () => { if (para.length) { h += '<p>' + mdInline(para.join('<br>'), nSrc) + '</p>'; para = []; } };
+  const flushL = () => { if (list) { h += `</${list}>`; list = null; } };
+  for (let i = 0; i < L.length; i++) {
+    const ln = L[i], t = ln.trim();
+    let m;
+    if (!t) { flushP(); flushL(); continue; }
+    if ((m = /^(#{1,4})\s+(.*)$/.exec(t))) { flushP(); flushL(); const lv = Math.min(4, m[1].length + 1); h += `<h${lv}>${mdInline(m[2], nSrc)}</h${lv}>`; continue; }
+    if (/^(-{3,}|\*{3,})$/.test(t)) { flushP(); flushL(); h += '<hr>'; continue; }
+    if (/^\|.*\|$/.test(t)) {
+      flushP(); flushL();
+      const rows = [];
+      while (i < L.length && /^\|.*\|$/.test(L[i].trim())) { rows.push(L[i].trim()); i++; }
+      i--;
+      const cells = r => r.slice(1, -1).split('|').map(c => c.trim());
+      const isSep = r => /^\|[\s:|-]+\|$/.test(r);
+      h += '<div class="tw"><table class="mdt">';
+      rows.forEach((r, k) => {
+        if (isSep(r)) return;
+        const tag = k === 0 && rows[1] && isSep(rows[1]) ? 'th' : 'td';
+        h += '<tr>' + cells(r).map(c => `<${tag} class="l">${mdInline(c, nSrc)}</${tag}>`).join('') + '</tr>';
+      });
+      h += '</table></div>';
+      continue;
+    }
+    if ((m = /^[-*•]\s+(.*)$/.exec(t)) || (m = /^\d+[.)]\s+(.*)$/.exec(t))) {
+      flushP();
+      const want = /^\d/.test(t) ? 'ol' : 'ul';
+      if (list !== want) { flushL(); h += `<${want}>`; list = want; }
+      h += '<li>' + mdInline(m[1], nSrc) + '</li>';
+      continue;
+    }
+    if ((m = /^&gt;\s?(.*)$/.exec(t))) { flushP(); flushL(); h += `<blockquote>${mdInline(m[1], nSrc)}</blockquote>`; continue; }
+    flushL(); para.push(t);
+  }
+  flushP(); flushL();
+  return h;
+}
+function aiCard(r) {
+  const src = r.sources || [];
+  return `<div class="aimeta small muted">${esc(fdate(r.time))} · ${esc(aiModelName(r.model))}${r.usage ? ` · 輸入 ${nf(r.usage.input, 0)}／輸出 ${nf(r.usage.output, 0)} tokens${r.usage.searches ? ` · 搜尋 ${r.usage.searches} 次` : ''}` : ''}</div>
+    <div class="md">${md(r.content, src.length)}</div>
+    ${src.length ? `<div class="srcs"><b>資料來源</b><ol>${src.map(x => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title || x.url)}</a> <span class="muted">${esc((x.url.split('/')[2] || ''))}</span></li>`).join('')}</ol></div>` : ''}`;
+}
+function aiModelName(id) { id = String(id || ''); const srch = /\+search$/.test(id); id = id.replace(/\+search$/, ''); const m = (A.s.ai && A.s.ai.models || []).find(x => x[0] === id); return (m ? m[1].split('（')[0] : id) + (srch ? '＋網路搜尋' : ''); }
+function openAi(acct, asset) {
+  const ai = A.s.ai || {}, key = acct + '|' + asset;
+  if (!ai.hasKey) {
+    return modal(`<h3>🤖 AI 診斷</h3><p>還沒設定 Anthropic API Key。設定後，這裡會把「${esc(acct)} · ${esc(asset)}」的掛單、持倉、成交與策略筆記交給 Claude 分析，並搜尋最近的市場、總經與科技消息，產生判斷與建議。</p>
+      <div class="foot"><button class="btn" data-m="close">關閉</button><button class="btn primary" data-m="ok">前往設定</button></div>`, act => { if (act === 'ok') { closeModal(); go('settings'); setTimeout(() => { const el = $('aiCard'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); } });
+  }
+  modal(`<h3 style="display:flex;align-items:center;gap:8px">🤖 AI 診斷 ${logo(asset, 22)} ${esc(asset)} <small class="muted" style="font-weight:400">${esc(acct)}</small><span class="sp" style="flex:1"></span><button class="ibtn" data-m="close" title="關閉">✕</button></h3>
+    <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary" data-m="gen" id="aiGen">產生新的診斷</button>
+      <span class="small muted">模型：${esc(aiModelName(ai.model))}　網路搜尋：${ai.search ? '開' : '關'}　<span class="tlink" data-m="cfg">變更</span></span>
+      <span class="sp" style="flex:1"></span>
+      <button class="btn sm" data-m="copy" id="aiCopy" disabled>複製</button>
+      <button class="btn sm" data-m="pdf" id="aiPdf" disabled>匯出 PDF</button>
+    </div>
+    <div id="aiProg" class="aiprog" style="display:none"></div>
+    <div id="aiOut" data-key="${esc(key)}" class="aiout"><div class="muted small">讀取歷次診斷…</div></div>
+    <div id="aiHist" class="aihist"></div>
+    <p class="small muted" style="margin-top:12px">AI 依你的資料與公開資訊產生，可能有錯，不構成投資建議。每次診斷會把這個帳戶、這個資產的掛單、持倉、成交摘要與策略筆記送到 Anthropic。</p>`, act => {
+    if (act === 'gen') return aiGen(acct, asset);
+    if (act === 'cfg') { closeModal(); go('settings'); setTimeout(() => { const el = $('aiCard'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 60); return; }
+    if (act === 'copy') return aiCopy();
+    if (act === 'pdf') return aiPdf(acct, asset);
+  }, 'wide');
+  aiProgress(key);
+  srv('api_aiList', [acct, asset]).then(list => { AI.list[key] = list || []; aiShow(key, AI.list[key][0]); })
+    .catch(e => { const o = $('aiOut'); if (o) o.innerHTML = `<div class="note-box">讀取失敗：${esc(e && e.message || e)}</div>`; });
+}
+function aiShow(key, r) {
+  const o = $('aiOut'); if (!o || o.dataset.key !== key) return;
+  const list = AI.list[key] || [];
+  o.dataset.id = r ? r.id : '';
+  o.innerHTML = r ? aiCard(r) : `<div class="empty" style="padding:24px">還沒有診斷紀錄，按「產生新的診斷」開始（分三步，大約 1–2 分鐘）。</div>`;
+  $('aiCopy').disabled = $('aiPdf').disabled = !r;
+  const hb = $('aiHist');
+  if (hb) hb.innerHTML = list.length > 1 || (list.length && (!r || list[0].id !== r.id)) ? `<div class="small muted" style="margin:10px 0 4px">歷次診斷</div><div class="chips">${list.map(x => `<button class="chipbtn ${r && x.id === r.id ? 'on' : ''}" data-aih="${esc(x.id)}">${esc(fdate(x.time))}</button>`).join('')}</div>` : '';
+}
+const AI_STEPS = [['news', '搜尋最新消息'], ['p1', '分析掛單結構'], ['p2', '市場、情境與建議']];
+function aiProgress(key) {
+  clearTimeout(aiProgress._t);
+  const p = $('aiProg'), g = $('aiGen'), o = $('aiOut'); if (!p || !o || o.dataset.key !== key) return;
+  const b = AI.busy[key];
+  if (!b) {
+    if (g) g.disabled = false;
+    const err = AI.err[key];
+    p.style.display = err ? 'block' : 'none';
+    p.innerHTML = err ? `<div class="note-box" style="margin:0">⚠ 這次診斷失敗：${esc(err)}</div>` : '';
+    return;
+  }
+  g.disabled = true; p.style.display = 'block';
+  const s = Math.round((Date.now() - b.t0) / 1000);
+  const steps = AI_STEPS.filter(x => x[0] !== 'news' || A.s.ai.search);
+  p.innerHTML = steps.map((x, i) => {
+    const k = AI_STEPS.findIndex(y => y[0] === x[0]), cur = AI_STEPS.findIndex(y => y[0] === b.step);
+    const st = k < cur ? '✓' : k === cur ? '<span class="spin"></span>' : '○';
+    return `<span style="margin-right:14px;${k === cur ? 'font-weight:600' : k < cur ? 'color:var(--muted)' : 'color:var(--muted)'}">${st} ${i + 1}. ${x[1]}</span>`;
+  }).join('') + `<span class="muted">已經 ${s} 秒</span>`;
+  aiProgress._t = setTimeout(() => aiProgress(key), 1000);
+}
+function aiGen(acct, asset) {
+  const key = acct + '|' + asset;
+  if (AI.busy[key]) return;
+  delete AI.err[key];
+  const b = AI.busy[key] = { t0: Date.now(), step: 'news' };
+  const usage = { input: 0, output: 0, searches: 0 };
+  const addU = u => { if (u) { usage.input += u.input || 0; usage.output += u.output || 0; usage.searches += u.searches || 0; } };
+  const finish = (r, err) => {
+    delete AI.busy[key];
+    if (err) AI.err[key] = err;
+    const here = $('aiOut') && $('aiOut').dataset.key === key;
+    if (r) { r.usage = usage; AI.list[key] = [r].concat(AI.list[key] || []); if (here) aiShow(key, r); else toast(`✅ ${acct} · ${asset} 的 AI 診斷完成，到資產頁按「AI 診斷」查看`, false, 6000); }
+    else if (!here) toast('⚠ AI 診斷失敗：' + err, true, 10000);
+    aiProgress(key);
+    if (A.view === 'asset' && $('modal').classList.contains('hidden')) render();
+  };
+  const run = (step, prev, ok) => {
+    b.step = step; aiProgress(key);
+    srv('api_aiStep', [acct, asset, step, prev]).then(r => { addU(r && r.usage); ok(r); })
+      .catch(e => finish(null, e && e.message ? e.message : String(e)));
+  };
+  run('news', null, news => run('p1', null, p1 => run('p2', { news: news, p1: p1.text }, r => finish(r))));
+}
+function aiCurrent() {
+  const o = $('aiOut'); if (!o) return null;
+  return (AI.list[o.dataset.key] || []).find(x => x.id === o.dataset.id) || null;
+}
+function aiCopy() {
+  const r = aiCurrent(); if (!r) return;
+  const txt = r.content + (r.sources.length ? '\n\n資料來源：\n' + r.sources.map((x, i) => `[${i + 1}] ${x.title} ${x.url}`).join('\n') : '');
+  const fb = () => { const ta = document.createElement('textarea'); ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; } ta.remove(); toast(ok ? '已複製' : '瀏覽器不允許複製，請手動選取文字', !ok); };
+  try { navigator.clipboard.writeText(txt).then(() => toast('已複製'), fb); } catch (e) { fb(); }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-aih]'); if (!b) return;
+  const o = $('aiOut'); if (!o) return;
+  const r = (AI.list[o.dataset.key] || []).find(x => x.id === b.dataset.aih);
+  if (r) aiShow(o.dataset.key, r);
+});
+
+// ═════════════ PDF 匯出 ═════════════
+// 注意：Apps Script 會把字串裡的兩個斜線當成註解吃掉，所以網址拆開寫
+const PDF_LIB = ['https:', '', 'cdnjs.cloudflare.com', 'ajax', 'libs', 'html2pdf.js', '0.10.1', 'html2pdf.bundle.min.js'].join('/');
+function loadPdfLib() {
+  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+  if (loadPdfLib._p) return loadPdfLib._p;
+  loadPdfLib._p = new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = window.__PDF_LIB || PDF_LIB; s.async = true;
+    s.onload = () => window.html2pdf ? res(window.html2pdf) : rej(new Error('PDF 元件載入失敗'));
+    s.onerror = () => { loadPdfLib._p = null; rej(new Error('PDF 元件載入失敗（網路）')); };
+    document.head.appendChild(s);
+  });
+  return loadPdfLib._p;
+}
+const PDF_CSS = `
+  .pdoc { box-sizing: border-box; width: 100%; padding: 2px 4px; background: #fff; color: #1f2328; font: 12px/1.5 -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
+  .pdoc * { box-sizing: border-box; }
+  .pdoc .pq-h1 { font-size: 19px; font-weight: 700; margin: 0 0 2px; display: flex; align-items: center; gap: 8px; }
+  .pdoc .pq-sub { color: #6b6e74; font-size: 11px; margin-bottom: 10px; }
+  .pdoc .pq-g { margin: 14px 0 6px; }
+  .pdoc .pq-gh { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; border-bottom: 2px solid #1f2328; padding-bottom: 4px; }
+  .pdoc .pq-gh span.pq-r { font-weight: 400; color: #6b6e74; font-size: 11px; margin-left: auto; }
+  .pdoc .pq-gs { color: #3d4046; font-size: 11px; margin: 5px 0 5px; }
+  .pdoc .pq-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: #ecebe6; margin: 3px 0 8px; }
+  .pdoc .pq-bar i { display: block; height: 100%; }
+  .pdoc table { width: 100%; border-collapse: collapse; border-spacing: 0; font-size: 11px; }
+  .pdoc th { position: static; text-align: right; font-weight: 600; color: #6b6e74; border-bottom: 1px solid #d9d7cf; padding: 4px 6px; background: #f6f5f1; white-space: nowrap; font-size: 11px; }
+  .pdoc td { text-align: right; padding: 3px 6px; border-bottom: 1px solid #ecebe6; white-space: nowrap; background: #fff; }
+  .pdoc th.pq-l, .pdoc td.pq-l { text-align: left; }
+  .pdoc td.pq-nt { white-space: normal; color: #3d4046; }
+  .pdoc tr.pq-f td { color: #8a8984; background: #f3f2ee; }
+  .pdoc tr.pq-f td.pq-x { text-decoration: line-through; }
+  .pdoc tr.pq-pz td { color: #a9a7a0; font-style: italic; }
+  .pdoc .pq-st { display: inline-block; padding: 0 7px; border-radius: 9px; font-size: 10px; font-weight: 600; line-height: 17px; }
+  .pdoc .pq-lg { border-radius: 50%; vertical-align: middle; display: inline-block; }
+  .pdoc .pq-lgb { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 700; vertical-align: middle; }
+  .pdoc .pq-ft { margin-top: 14px; color: #8a8984; font-size: 10px; text-align: center; }
+  .pdoc .md { font-size: 12.5px; line-height: 1.65; }
+  .pdoc .md h2 { font-size: 15px; margin: 14px 0 6px; } .pdoc .md h3 { font-size: 13.5px; margin: 12px 0 4px; }
+  .pdoc .md table td, .pdoc .md table th { white-space: normal; text-align: left; }
+  .pdoc .md .tw { overflow: visible; max-height: none; border: 0; }
+  .pdoc .srcs { font-size: 10px; color: #3d4046; margin-top: 12px; border-top: 1px solid #d9d7cf; padding-top: 6px; }
+  .pdoc .srcs a { color: #2a78d6; text-decoration: none; word-break: break-all; }
+  .pdoc .cite { color: #2a78d6; font-size: 9px; }
+`;
+const PST = { '規劃': ['#7a5300', '#ffe9a8'], '已掛單': ['#0d6b4a', '#c4ecdc'], '已成交': ['#5d5c57', '#dddcd6'], '暫停': ['#8a8984', '#f1f0ec'] };
+// 圖示先轉成 PNG（SVG 圖示在 PDF 畫布裡常常畫不出來；外部網址的圖片也會讓畫布無法輸出）
+const PNG_ICON = {};
+function prepIcons(names) {
+  return Promise.all([...new Set(names)].map(n => new Promise(res => {
+    const a = A.am[n] || {}, u = (a.logo && /^data:/.test(a.logo)) ? a.logo : ICONS[String(n || '').toUpperCase()];
+    if (!u || PNG_ICON[n]) return res();
+    const img = new Image();
+    img.onload = () => { try { const c = document.createElement('canvas'); c.width = c.height = 96; c.getContext('2d').drawImage(img, 0, 0, 96, 96); PNG_ICON[n] = c.toDataURL('image/png'); } catch (e) { /* 用字母章 */ } res(); };
+    img.onerror = () => res();
+    img.src = u;
+  })));
+}
+function pdfLogo(name, size) {
+  if (PNG_ICON[name]) return `<img class="pq-lg" src="${PNG_ICON[name]}" width="${size}" height="${size}" style="width:${size}px;height:${size}px">`;
+  const hue = [...String(name || '?')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+  return `<span class="pq-lgb" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.48)}px;background:hsl(${hue} 42% 44%)">${esc(String(name || '?').charAt(0))}</span>`;
+}
+function ordersPdfHtml(list, opt) {
+  const s = A.s, f = A.of;
+  const groups = [], gm = {};
+  list.forEach(o => { const k = o.acct + '|' + o.asset + '|' + o.side; if (!gm[k]) { gm[k] = { acct: o.acct, asset: o.asset, side: o.side, os: [] }; groups.push(gm[k]); } gm[k].os.push(o); });
+  const stOn = STATUSES.filter(x => f.st[x]);
+  const flt = [f.asset === '全部' ? '全部資產' : f.asset, f.side === '全部' ? '買＋賣' : f.side + '單', stOn.length === 4 ? '全部狀態' : stOn.join('、'), f.hint ? HINT[f.hint] : '', f.q ? '搜尋「' + f.q + '」' : ''].filter(Boolean).join('　');
+  let h = `<div class="pdoc"><div class="pq-h1">${esc(opt.title)}</div><div class="pq-sub">帳戶：${esc(A.acct)}　·　產生時間：${esc(fdate(Date.now()))}　·　${list.length} 張　·　篩選：${esc(flt)}　·　金額幣別：${A.ccy === '原幣' ? '各資產原幣' : ccyName(A.ccy)}</div>`;
+  groups.forEach(g => {
+    const n = g.asset, a = A.am[n] || {}, all = s.orders.filter(o => o.acct === g.acct && o.asset === n && o.side === g.side);
+    const qOf = st => sum(all.filter(o => o.status === st), o => o.qty), tot = sum(all, o => o.qty) || 1;
+    const open = all.filter(o => o.status === ST.PLAN || o.status === ST.PLACED);
+    const hold = holdingInfo(n, g.acct);
+    h += `<div class="pq-g"><div class="pq-gh">${pdfLogo(n, 18)} ${esc(n)} · ${g.side}單<span class="pq-r">現價 ${fp(a.price, n)}${a.source ? '（' + esc(a.source) + '）' : ''} · 以 ${ccyFor(n)} 計</span></div>
+      <div class="pq-gs">共 ${all.length} 張：已成交 ${all.filter(o => o.status === ST.FILLED).length}（${fq(qOf(ST.FILLED), n)}）· 已掛單 ${all.filter(o => o.status === ST.PLACED).length}（${fq(qOf(ST.PLACED), n)}）· 規劃 ${all.filter(o => o.status === ST.PLAN).length}（${fq(qOf(ST.PLAN), n)}）${qOf(ST.PAUSED) ? ' · 暫停 ' + all.filter(o => o.status === ST.PAUSED).length : ''}
+        　未成交 ${fq(sum(open, o => o.qty), n)} ${esc(unitOf(n))}（${fusd(sum(open, o => o.val), n)}）${hold.q !== null && hold.q !== undefined && isFinite(hold.q) && g.side === '賣' && hold.q > 0 ? `　·　占持倉 ${fpct(sum(open, o => o.qty) / hold.q, false)}` : ''}</div>
+      <div class="pq-bar">${[[ST.FILLED, COL.filled], [ST.PLACED, COL.placed], [ST.PLAN, COL.plan], [ST.PAUSED, COL.paused]].map(x => qOf(x[0]) > 0 ? `<i style="display:block;width:${(qOf(x[0]) / tot * 100).toFixed(2)}%;background:${x[1]}"></i>` : '').join('')}</div>
+      <table><thead><tr><th class="pq-l">#</th><th>價格</th><th>距現價</th><th>數量</th><th>價值</th><th class="pq-l">狀態</th>${opt.notes ? '<th class="pq-l">備註</th>' : ''}</tr></thead><tbody>`;
+    g.os.forEach(o => {
+      const c = PST[o.status] || PST['規劃'];
+      h += `<tr class="${o.status === ST.FILLED ? 'pq-f' : o.status === ST.PAUSED ? 'pq-pz' : ''}"><td class="pq-l">${o.lvl === null ? '' : o.lvl}</td><td class="pq-x">${fp(o.price, n)}</td><td>${fpct(o.pct)}</td><td class="pq-x"><b>${fq(o.qty, n)}</b></td><td>${fusd(o.val, n)}</td>
+        <td class="pq-l"><span class="pq-st" style="color:${c[0]};background:${c[1]}">${esc(o.status)}</span></td>${opt.notes ? `<td class="pq-l pq-nt">${esc(o.note)}</td>` : ''}</tr>`;
+    });
+    h += '</tbody></table></div>';
+  });
+  return h + `<div class="pq-ft">資產掛單規劃本 Asset Ladder Planner · ${esc(fdate(Date.now()))} · 價格與百分比為產生當下的數字</div></div>`;
+}
+function openOrdersPdf() {
+  const list = A.s.orders.filter(visibleInOrders);
+  if (!list.length) return toast('目前篩選沒有掛單可以匯出', true);
+  const asset = A.of.asset === '全部' ? '' : A.of.asset + ' ';
+  modal(`<h3>匯出掛單簿 PDF</h3>
+    <p class="small muted" style="margin-top:0">會依目前畫面的篩選條件匯出 <b>${list.length}</b> 張掛單（${esc(A.acct)}），A4 直式，方便分享。要只匯出某個資產或狀態，可以先在掛單簿上方篩選。</p>
+    <div class="fg"><label class="full">標題<input type="text" id="pdT" value="${esc(A.acct + ' ' + asset + '掛單簿')}"></label></div>
+    <label class="chk"><input type="checkbox" id="pdN" checked><span>包含備註欄</span></label>
+    <div id="pdMsg"></div>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn" data-m="print" title="用瀏覽器的列印視窗，目的地選「另存為 PDF」">用列印存成 PDF</button><button class="btn primary" data-m="ok" id="pdOk">下載 PDF</button></div>`, act => {
+    const opt = { title: $('pdT').value.trim() || '資產掛單規劃本', notes: $('pdN').checked };
+    const html = ordersPdfHtml(list, opt);
+    const fname = pdfName('orders', A.of.asset === '全部' ? 'all' : A.of.asset);
+    if (act === 'print') { closeModal(); return prepIcons(list.map(o => o.asset)).then(() => printHtml(ordersPdfHtml(list, opt))); }
+    if (act === 'ok') return prepIcons(list.map(o => o.asset)).then(() => makePdf(ordersPdfHtml(list, opt), fname, $('pdOk'), $('pdMsg')));
+  });
+}
+function aiPdf(acct, asset) {
+  const r = aiCurrent(); if (!r) return;
+  if (!PNG_ICON[asset] && !aiPdf._p) { aiPdf._p = 1; return prepIcons([asset]).then(() => { aiPdf._p = 0; aiPdf(acct, asset); }); }
+  const src = r.sources || [];
+  const html = `<div class="pdoc"><div class="pq-h1">${pdfLogo(asset, 22)} ${esc(asset)} AI 診斷</div><div class="pq-sub">帳戶：${esc(acct)}　·　${esc(fdate(r.time))}　·　${esc(aiModelName(r.model))}</div>
+    <div class="md">${md(r.content, src.length)}</div>
+    ${src.length ? `<div class="srcs"><b>資料來源</b><ol>${src.map(x => `<li>${esc(x.title || '')} <a href="${esc(x.url)}">${esc(x.url)}</a></li>`).join('')}</ol></div>` : ''}
+    <div class="pq-ft">資產掛單規劃本 Asset Ladder Planner · AI 產生的參考意見，不構成投資建議</div></div>`;
+  makePdf(html, pdfName('AI', asset, r.time), $('aiPdf'), $('aiProg'));
+}
+// 檔名只用英數字（部分瀏覽器遇到中文檔名會變成沒有副檔名的 download）
+function pdfName(kind, asset, t) { const a = String(asset || '').replace(/[^A-Za-z0-9.-]+/g, '') || 'asset'; return `AssetLadder_${kind}_${a}_${fdate(t || Date.now()).slice(0, 10)}.pdf`; }
+function pdfHost(html) {
+  let host = $('pdfHost');
+  if (!host) { host = document.createElement('div'); host.id = 'pdfHost'; host.style.cssText = 'position:fixed;left:-10000px;top:0;z-index:-1'; document.body.appendChild(host); }
+  host.innerHTML = `<style>${PDF_CSS}</style>${html}`;
+  return host.querySelector('.pdoc');
+}
+function makePdf(html, fname, btn, msgEl) {
+  if (btn) { btn.disabled = true; btn._t = btn.textContent; btn.textContent = '產生中…'; }
+  const restore = () => { if (btn) { btn.disabled = false; btn.textContent = btn._t; } };
+  const say = h => { if (msgEl) { msgEl.style.display = 'block'; msgEl.innerHTML = h; } };
+  loadPdfLib().then(lib => {
+    const el = pdfHost(html);
+    return lib().set({
+      margin: [10, 9, 12, 9], filename: fname, image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.ph', '.ps', '.bar', 'h2', 'h3', 'li', 'p'] }
+    }).from(el).toPdf().get('pdf').then(pdf => {
+      const n = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= n; i++) { pdf.setPage(i); pdf.setFontSize(8); pdf.setTextColor(150); pdf.text(`${i} / ${n}`, 200, 291, { align: 'right' }); }
+      const blob = pdf.output('blob'), url = URL.createObjectURL(blob);
+      try { const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove(); } catch (e) { /* 下載被擋 → 用下面的連結 */ }
+      restore();
+      say(`<div class="note-box" style="background:var(--good-bg,#e6f6ef);color:var(--good,#0b6b48)">✅ 已產生「${esc(fname)}」（${n} 頁）。如果沒有自動下載，<a href="${url}" target="_blank" rel="noopener" download="${esc(fname)}">按這裡開啟 PDF</a>，或改用「用列印存成 PDF」。</div>`);
+      $('pdfHost').innerHTML = '';
+    });
+  }).catch(e => { restore(); say(`<div class="note-box">⚠ ${esc(e && e.message || e)}。可以改用「用列印存成 PDF」。</div>`); });
+}
+function printHtml(html) {
+  let p = $('printArea');
+  if (!p) { p = document.createElement('div'); p.id = 'printArea'; document.body.appendChild(p); }
+  p.innerHTML = `<style>${PDF_CSS} @media print { body > *:not(#printArea) { display: none !important; } #printArea { display: block !important; } .pdoc { width: auto; } .pdoc tr, .pdoc .ph { break-inside: avoid; } @page { size: A4; margin: 10mm; } } #printArea { display: none; }</style>${html}`;
+  setTimeout(() => { window.print(); }, 80);
+}
+
+// ═════════════ 彈出視窗 ═════════════
+let modalCb = null;
+function modal(html, cb, cls) { $('dlg').className = 'dlg' + (cls ? ' ' + cls : ''); $('dlg').innerHTML = html; $('modal').classList.remove('hidden'); modalCb = cb; const f = $('dlg').querySelector('input,select'); if (f) setTimeout(() => f.focus(), 30); }
+function closeModal() { $('modal').classList.add('hidden'); modalCb = null; }
+function confirmBox(title, body, okText, ok) {
+  modal(`<h3>${esc(title)}</h3><p>${body}</p><div class="foot"><button class="btn" data-m="close">取消</button><button class="btn danger" data-m="ok">${esc(okText)}</button></div>`, act => { if (act === 'ok') { closeModal(); ok(); } });
+}
+$('modal').addEventListener('click', e => {
+  if (e.target === $('modal')) return closeModal();
+  const b = e.target.closest('[data-m]'); if (!b) return;
+  if (b.dataset.m === 'close') return closeModal();
+  if (modalCb) modalCb(b.dataset.m);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); hidePop(); } });
+function showPop(el, id) {
+  const o = A.s.orders.find(x => x.id === id); if (!o) return;
+  const p = $('pop');
+  p.innerHTML = STATUSES.map(st => `<button data-st="${st}" ${st === o.status ? 'disabled style="opacity:.45"' : ''}><span class="st ${SCLS[st]}" style="pointer-events:none">${st}</span>${st === ST.FILLED ? '<span class="muted small">登記成交…</span>' : ''}</button>`).join('') +
+    `<button data-st="__dup"><span class="small">複製為新規劃單</span></button>`;
+  p.dataset.id = id;
+  const r = el.getBoundingClientRect();
+  p.style.display = 'block';
+  p.style.left = Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - p.offsetWidth - 8) + 'px';
+  p.style.top = (window.scrollY + r.bottom + 4) + 'px';
+}
+function hidePop() { $('pop').style.display = 'none'; }
+$('pop').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const id = $('pop').dataset.id; hidePop();
+  if (b.dataset.st === '__dup') return call('api_duplicate', [[id]], () => { toast('已複製為新規劃單'); render(); });
+  changeStatus([id], b.dataset.st);
+});
+document.addEventListener('click', e => { if (!e.target.closest('#pop') && !e.target.closest('[data-act=stPop]')) hidePop(); });
+
+// ═════════════ 事件 ═════════════
+$('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.v); });
+$('gCcy').value = A.ccy;
+$('gCcy').addEventListener('change', e => {
+  A.ccy = e.target.value;
+  try { localStorage.setItem('ccy', A.ccy); } catch (x) { /* 不記也沒關係 */ }
+  if (!A.raw || A.raw.needsSetup) return;
+  A.scen = {};
+  setState(A.raw);
+  if (A.noFx && A.ccy !== '原幣') toast('⚠ 目前抓不到匯率，暫時以原幣顯示', true);
+  if (A.sim) simLoad();
+  render();
+});
+$('gAcct').addEventListener('change', e => { A.acct = e.target.value; A.sel.clear(); if (A.sim) { A.sim.acct = A.acct; simLoad(); } render(); });
+$('btnRefresh').addEventListener('click', () => { if (!GAS && !SY.cfg) return; call('api_refreshPrices', [], () => { toast('已更新資料與現價'); render(); }); });
+function manualSync() {
+  const bad0 = SY.bad;
+  return syncFlush().then(() => syncRefresh(false)).then(() => { if (SY.bad === bad0) toast(SY.outbox.length ? '⚠ 還有變更沒送出' : '✅ 已同步'); render(); }).catch(e => toast('⚠ ' + e.message, true));
+}
+$('syncB').addEventListener('click', manualSync);
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const act = el.dataset.act, d = el.dataset;
+  switch (act) {
+    case 'doSetup': return call('api_setup', [false], () => { toast('✅ 已建立並匯入'); go('overview'); });
+    case 'cfSave': return connectSave();
+    case 'cfEdit': return renderConnect();
+    case 'cfRetry': return bootPwa();
+    case 'cfSync': return manualSync();
+    case 'cfReset': return confirmBox('清除這台裝置的資料', SY.outbox.length ? `還有 <b>${SY.outbox.length}</b> 筆變更沒有同步，清除後會<b>永久遺失</b>。試算表裡的資料不受影響。` : '會清除這台裝置上的資料快取與連線設定（網址、金鑰）。試算表裡的資料不受影響。', '清除', () => {
+      ['cfg', 'base', 'outbox', 'lastOk'].forEach(LS.del); SY.cfg = null; SY.base = null; SY.outbox = []; SY.lastOk = 0; A.s = null; A.raw = null; syncBadge(); renderConnect();
+    });
+    case 'goAsset': return go('asset', { asset: d.asset });
+    case 'back': return go('overview');
+    case 'pickAsset': A.asset = d.asset; return render();
+    case 'hintGo': A.of = { asset: '全部', side: '全部', st: { '規劃': 1, '已掛單': 1, '已成交': 1, '暫停': 1 }, hint: d.h, q: '' }; return go('orders');
+    case 'simGo': return goSim(A.acct, A.asset, d.side);
+    case 'simGo2': return goSim(d.acct, d.asset, d.side);
+    case 'stPop': e.stopPropagation(); return showPop(el, d.id);
+    case 'ofSide': A.of.side = d.v; return render();
+    case 'ofSt': A.of.st[d.v] = A.of.st[d.v] ? 0 : 1; return render();
+    case 'toggleGrp': A.collapsed[d.k] = !A.collapsed[d.k]; return render();
+    case 'editOrder': return openOrderEdit(d.id);
+    case 'addOrder': return openAddOrder();
+    case 'bSt': return changeStatus([...A.sel], d.v);
+    case 'bFill': return openFill([...A.sel]);
+    case 'bDup': return call('api_duplicate', [[...A.sel]], () => { toast('已複製為新規劃單'); A.sel.clear(); render(); });
+    case 'bDel': return confirmBox(`刪除 ${A.sel.size} 張掛單`, '已成交單的成交紀錄會保留。刪除後無法復原。', '刪除', () => call('api_deleteOrders', [[...A.sel]], () => { toast('已刪除'); A.sel.clear(); render(); }));
+    case 'bClear': A.sel.clear(); return render();
+    case 'tfSide': A.tf.side = d.v; return render();
+    case 'editTrade': return openTrade(d.id);
+    case 'addTrade': return openTrade(null);
+    case 'holdTime': return openHoldTime(d.acct, d.asset);
+    case 'holdDel': return confirmBox(`移除 ${d.acct} ${d.asset} 的持倉列`, '只會移除持倉設定，不會影響掛單與成交紀錄。', '移除', () => call('api_deleteHolding', [d.acct, d.asset], () => render()));
+    case 'holdAdd': {
+      const q = num($('hQ').value);
+      return call('api_saveHolding', [{ acct: $('hA').value, asset: $('hS').value, qty: q, time: q === null ? null : Date.now() }], () => { toast('已新增'); render(); });
+    }
+    case 'saveGen': return call('api_saveSettings', [{ alertPct: (num($('sAl').value) || 0) / 100, feeRate: (num($('sFee').value) || 0) / 100, defExch: $('sEx').value }], () => { toast('已儲存'); render(); });
+    case 'saveNotes': return call('api_saveNotes', [A.acct, $('sNotes').value], () => toast(`「${A.acct}」的筆記已儲存`));
+    case 'acctAdd': { const n = $('newAcct').value.trim(); if (!n) return toast('請輸入帳戶名稱', true); return call('api_addAccount', [n], () => { toast(`已新增帳戶「${n}」`); render(); }); }
+    case 'acctUse': A.acct = d.a; setState(A.raw); if (A.sim) { A.sim.acct = A.acct; simLoad(); } return render();
+    case 'acctRen': return acctRename(d.a);
+    case 'acctDel': return acctDelete(d.a);
+    case 'refresh': return call('api_refreshPrices', [], () => { toast('已更新現價'); render(); });
+    case 'aiOpen': return openAi(A.acct, A.asset);
+    case 'ordersPdf': return openOrdersPdf();
+    case 'aiSave': { const k = $('aiKey').value.trim(); return call('api_saveAi', [{ key: k, model: $('aiModel').value, search: $('aiSearch').value === '1' }], () => { toast(k ? '已儲存 API Key 與 AI 設定' : '已儲存 AI 設定'); render(); }); }
+    case 'aiClear': return confirmBox('移除 API Key', '移除後就不能使用 AI 診斷，直到重新填入。過去的診斷紀錄會保留。', '移除', () => call('api_saveAi', [{ clearKey: true }], () => { toast('已移除 API Key'); render(); }));
+    case 'addAsset': { const tb = $('asBody'); tb.insertAdjacentHTML('beforeend', assetRow({ name: '', gf: '', cg: '', manual: null, qd: 4, pd: 2, ccy: 'USD', unit: '', logo: '', note: '' }, tb.children.length)); return; }
+    case 'delAsset': { const tr = el.closest('tr'); const nm = tr.querySelector('[data-f=name]').value; if (A.s.orders.some(o => o.asset === nm)) return toast(`${nm} 還有掛單，不能移除`, true); tr.remove(); return; }
+    case 'saveAssets': {
+      const list = [...$('asBody').querySelectorAll('tr')].map(tr => { const g = f => tr.querySelector(`[data-f=${f}]`).value; return { name: g('name'), gf: g('gf'), cg: g('cg'), manual: g('manual'), qd: g('qd'), pd: g('pd'), ccy: g('ccy'), unit: g('unit'), logo: g('logo'), note: g('note') }; }).filter(a => a.name.trim());
+      return call('api_saveAssets', [list], () => { toast('資產設定已儲存'); render(); });
+    }
+  }
+});
+document.addEventListener('change', e => {
+  const el = e.target, act = el.dataset && el.dataset.act; if (!act) return;
+  const d = el.dataset;
+  switch (act) {
+    case 'ofAsset': A.of.asset = el.value; return render();
+    case 'ofHint': A.of.hint = el.value; return render();
+    case 'tfAsset': A.tf.asset = el.value; return render();
+    case 'sel': if (el.checked) A.sel.add(d.id); else A.sel.delete(d.id); el.closest('tr').classList.toggle('sel', el.checked); return renderBatch();
+    case 'selAll': case 'selGrp': {
+      A.s.orders.filter(o => visibleInOrders(o) && (act === 'selAll' || o.acct + '|' + o.asset + '|' + o.side === d.k))
+        .forEach(o => { if (el.checked) A.sel.add(o.id); else A.sel.delete(o.id); });
+      return render();
+    }
+    case 'note': return call('api_updateOrder', [d.id, { note: el.value }], () => toast('備註已儲存'), { silent: false });
+    case 'holdQty': return call('api_saveHolding', [{ acct: d.acct, asset: d.asset, qty: el.value, time: Date.now() }], () => { toast('持倉已儲存，基準時間 = 現在'); render(); });
+  }
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset && el.dataset.act === 'ofQ') { clearTimeout(el._t); el._t = setTimeout(() => { A.of.q = el.value; const pos = el.selectionStart; render(); const n = view().querySelector('[data-act=ofQ]'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }, 250); }
+});
+function visibleInOrders(o) {
+  const f = A.of, q = f.q.trim().toLowerCase();
+  return inAcct(o) && (f.asset === '全部' || o.asset === f.asset) && (f.side === '全部' || o.side === f.side) && f.st[o.status] && (!f.hint || o.hint === f.hint) &&
+    (!q || o.id.toLowerCase().indexOf(q) >= 0 || (o.note || '').toLowerCase().indexOf(q) >= 0 || String(o.price).indexOf(q) >= 0);
+}
+function goSim(acct, asset, side) {
+  if (!acct) {
+    const withOrders = A.s.settings.accounts.filter(a => A.s.orders.some(o => o.acct === a && o.asset === asset && o.side === side));
+    acct = withOrders[0] || A.s.settings.accounts[0];
+  }
+  A.sim = { acct: acct, asset: asset, side: side };
+  simLoad();
+  go('sim');
+}
+let rz = null;
+window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (A.view === 'asset' || A.view === 'sim') render(); }, 200); });
+
+// 每 5 分鐘自動更新現價（畫面在前景、沒開視窗時）
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || !$('modal').classList.contains('hidden') || !A.s || A.s.needsSetup) return;
+  if (A.view === 'sim' || document.activeElement && /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  call('api_load', [], () => render(), { silent: true });
+}, 5 * 60 * 1000);
+
+// 啟動
+function boot() {
+  if (!GAS) return bootPwa();
+  busy(1);
+  google.script.run.withSuccessHandler(s => {
+    busy(-1);
+    if (!s) return window.__bootErr('伺服器回傳了空的資料（api_load 回傳 null）。\n通常是資料裡有無法傳到網頁的格式。');
+    try {
+      if (s.needsSetup) { A.s = s; renderSetup(); window.__booted = true; return; }
+      setState(s); render(); window.__booted = true;
+    } catch (e) { window.__bootErr('畫面產生失敗：' + (e && e.message) + '\n' + String(e && e.stack || '').split('\n').slice(0, 4).join('\n') + '\n（版本 ' + (s.ver || '?') + '）'); }
+  }).withFailureHandler(e => { busy(-1); window.__booted = true; view().innerHTML = `<div class="card setup"><h2>讀取失敗</h2><p>${esc(e && e.message ? e.message : e)}</p></div>`; }).api_load();
+}
+function bootPwa() {
+  syncWire(); syncBadge();
+  if (!SY.cfg) return renderConnect();
+  if (SY.base && !SY.base.needsSetup) {
+    // 先用這台裝置上的資料立刻畫出來，再到背景同步
+    try { rebase(true); window.__booted = true; } catch (e) { window.__bootErr('畫面產生失敗：' + (e && e.message)); return; }
+    syncRefresh(true).catch(() => {});
+    return;
+  }
+  busy(1);
+  syncRefresh(false).then(() => { busy(-1); window.__booted = true; }).catch(e => {
+    busy(-1); window.__booted = true;
+    if (e.auth) return;
+    view().innerHTML = `<div class="card setup"><h2>連不到試算表</h2><p>${esc(e.message)}</p><p class="small muted">這台裝置還沒有資料，第一次需要連線下載。</p>
+      <div class="foot" style="justify-content:center"><button class="btn" data-act="cfEdit">更改連線設定</button><button class="btn primary" data-act="cfRetry">重試</button></div></div>`;
+  });
+}
+boot();
+})();
+</script>
+</body>
+</html>
