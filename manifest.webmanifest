@@ -1,7 +1,7 @@
 {
-  "name": "資產掛單規劃本 Asset Ladder Planner",
-  "short_name": "掛單規劃本",
-  "description": "規劃階梯式買賣掛單、追蹤成交；離線也能記，連線後自動同步到自己的 Google 試算表。",
+  "name": "資產買賣紀錄與掛單規劃本 Asset Trade & Ladder Planner",
+  "short_name": "買賣與掛單",
+  "description": "記錄真實買賣、規劃階梯式掛單、追蹤成交；離線也能記，連線後自動同步到自己的 Google 試算表。",
   "lang": "zh-Hant",
   "start_url": "./",
   "scope": "./",

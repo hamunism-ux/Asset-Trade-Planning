@@ -5,14 +5,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="掛單規劃本">
+<meta name="apple-mobile-web-app-title" content="買賣與掛單">
 <meta name="referrer" content="no-referrer">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>資產掛單規劃本 Asset Ladder Planner</title>
+<title>資產買賣紀錄與掛單規劃本 Asset Trade & Ladder Planner</title>
 <style>
   :root {
     --plane: #f4f3ef; --card: #ffffff; --surface: #fcfcfb;
@@ -149,6 +149,7 @@
   tr.r-filled td.px, tr.r-filled td.q { text-decoration: line-through; }
   tr.r-placed td { background: #f1fbf6; }
   tr.r-paused td { color: #a9a7a0; font-style: italic; }
+  tr.r-pend td { background: var(--warn-bg) !important; }
   tr.sel td { background: var(--accent-wash) !important; }
   tr.grp td { background: #f7f6f2 !important; font-weight: 600; text-align: left; border-bottom: 1px solid var(--line); padding: 8px 9px; position: sticky; top: 33px; z-index: 1; }
   tr.grp .gs { font-weight: 400; color: var(--ink2); font-size: 12px; margin-left: 10px; }
@@ -279,12 +280,13 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><i></i>資產掛單規劃本<span class="en">Asset Ladder Planner</span></div>
+  <div class="brand"><i></i>資產買賣紀錄與掛單規劃本<span class="en">Asset Trade &amp; Ladder Planner</span></div>
   <nav id="nav">
     <button data-v="overview" class="on">總覽</button>
     <button data-v="orders">掛單簿</button>
     <button data-v="sim">模擬器</button>
-    <button data-v="trades">成交紀錄</button>
+    <button data-v="trades">掛單成交狀態</button>
+    <button data-v="real">真實交易紀錄</button>
     <button data-v="settings">設定</button>
   </nav>
   <div class="tools">
@@ -349,7 +351,7 @@ function logo(name, size) {
 const A = {
   s: null, view: 'overview', acct: '', asset: null,
   of: { asset: '全部', side: '全部', st: { '規劃': 1, '已掛單': 1, '已成交': 1, '暫停': 1 }, hint: '', q: '' },
-  sel: new Set(), collapsed: {}, tf: { asset: '全部', side: '全部' }, scen: {}, sim: null, am: {},
+  sel: new Set(), collapsed: {}, tf: { asset: '全部', side: '全部' }, rf: { asset: '全部', side: '全部', year: '', pending: false }, rsel: new Set(), scen: {}, sim: null, am: {},
   raw: null, ccy: (() => { try { return localStorage.getItem('ccy') || '原幣'; } catch (e) { return '原幣'; } })(), totCcy: 'USD'
 };
 const $ = id => document.getElementById(id);
@@ -460,9 +462,12 @@ const LOCAL = {
       const o = s.orders.find(x => x.id === it.id);
       if (!o || o.status === ST.FILLED) return;
       const price = nv(it.price) || o.price, qty = nv(it.qty) || o.qty || 0, amt = r2(price * qty);
+      const wasPlaced = o.status === ST.PLACED, fee = r2(amt * rate);
       s.trades.push({ id: it.logId, time: time, d: localDay(time), acct: o.acct, asset: o.asset, side: o.side, price: price, qty: qty,
-        fee: r2(amt * rate), exch: exch, oid: o.id, note: String(common.note || '').trim() });
+        fee: fee, exch: exch, oid: o.id, note: String(common.note || '').trim() });
       o.status = ST.FILLED; o.logId = it.logId; k++;
+      if (wasPlaced && it.realId) s.real.push({ id: it.realId, time: time, d: localDay(time), acct: o.acct, asset: o.asset, side: o.side, price: price, qty: qty, fee: fee, exch: exch,
+        source: '掛單成交', logId: it.logId, confirmed: false, note: '由掛單 ' + o.id + ' 成交自動寫入，請確認價格與數量' });
     });
     if (!k) throw new Error('沒有可以登記的單（可能都已經是已成交）');
   },
@@ -513,6 +518,33 @@ const LOCAL = {
   api_deleteTrade(s, id) {
     s.trades = s.trades.filter(t => t.id !== id);
     s.orders.forEach(o => { if (o.logId === id) { o.logId = ''; if (o.status === ST.FILLED) o.status = ST.PLACED; } });
+    s.real = s.real.filter(r => { if (r.logId !== id) return true; if (r.confirmed) { r.logId = ''; r.note = (r.note + '（對應的掛單成交紀錄已刪除）').trim(); return true; } return false; });
+  },
+  api_saveReal(s, t) {
+    const price = nv(t.price), qty = nv(t.qty);
+    if (!t.acct || !t.asset || !t.side || !(price > 0) || !(qty > 0)) throw new Error('請填帳戶、資產、方向、價格、數量');
+    let row = s.real.find(x => x.id === t.id);
+    if (!row && !t._new) throw new Error('找不到交易紀錄 ' + t.id);
+    if (!row) { row = { id: t.id, source: '手動', logId: '', confirmed: true }; s.real.push(row); }
+    else if (row.source === '掛單成交') row.confirmed = true;
+    const time = nv(t.time);
+    Object.assign(row, { time: time || null, d: time ? localDay(time) : '', acct: t.acct, asset: t.asset, side: t.side, price: price, qty: qty,
+      fee: nv(t.fee), exch: String(t.exch || '').trim(), note: String(t.note || '').trim() });
+  },
+  api_deleteReal(s, ids) { const set = new Set(ids); s.real = s.real.filter(r => !set.has(r.id)); },
+  api_confirmReal(s, ids) { const set = new Set(ids); s.real.forEach(r => { if (set.has(r.id)) r.confirmed = true; }); },
+  api_importReal(s, acct, items) {
+    if (s.settings.accounts.indexOf(acct) < 0) throw new Error('找不到帳戶 ' + acct);
+    const am = {}; s.assets.forEach(a => am[a.name.toUpperCase()] = a.name);
+    let n = 0;
+    (items || []).forEach(it => {
+      const asset = am[String(it.asset || '').toUpperCase()], price = nv(it.price), qty = nv(it.qty);
+      if (!asset || (it.side !== '買' && it.side !== '賣') || !(price > 0) || !(qty > 0) || s.real.some(r => r.id === it.id)) return;
+      const time = nv(it.time);
+      s.real.push({ id: it.id, time: time || null, d: time ? localDay(time) : '', acct: acct, asset: asset, side: it.side, price: price, qty: qty, fee: nv(it.fee), exch: String(it.exch || '').trim(), source: '匯入', logId: '', confirmed: true, note: String(it.note || '').trim() });
+      n++;
+    });
+    if (!n) throw new Error('沒有可以匯入的資料（請檢查資產名稱、方向、價格與數量）');
   },
   api_saveHolding(s, h) {
     if (!h.acct || !h.asset) throw new Error('請選帳戶與資產');
@@ -544,8 +576,10 @@ function prepArgs(fn, args) {
   if (fn === 'api_addOrder' && !args[0].id) args[0].id = uid('O');
   if (fn === 'api_addOrders') (args[0].levels || []).forEach(l => { if (!l.id) l.id = uid('O'); });
   if (fn === 'api_duplicate') args[1] = (args[0] || []).map(() => uid('O'));
-  if (fn === 'api_recordFills') (args[0] || []).forEach(it => { if (!it.logId) it.logId = uid('T'); });
+  if (fn === 'api_recordFills') (args[0] || []).forEach(it => { if (!it.logId) it.logId = uid('T'); if (!it.realId) it.realId = uid('R'); });
   if (fn === 'api_saveTrade' && !args[0].id) { args[0].id = uid('T'); args[0]._new = true; }
+  if (fn === 'api_saveReal' && !args[0].id) { args[0].id = uid('R'); args[0]._new = true; }
+  if (fn === 'api_importReal') (args[1] || []).forEach(it => { if (!it.id) it.id = uid('R'); });
   return args;
 }
 /** 依伺服器的規則整理掛單：最終數量、排序、層級 */
@@ -670,7 +704,7 @@ function syncCard() {
       <span>上次同步</span><b>${SY.lastOk ? esc(fdate(SY.lastOk)) : '—'}</b>
       <span>同步網址</span><b style="font-weight:400;font-size:12px;word-break:break-all">${esc(u.replace(/^(.{40}).*(.{12})$/, '$1…$2'))}</b></div>
     ${SY.err ? `<div class="note-box">上次錯誤：${esc(SY.err)}</div>` : ''}
-    <p class="small muted">記帳、改狀態、登記成交、改單、加單、持倉與筆記會先存在這台裝置，有網路時自動送出。AI 診斷、更新現價、資產設定、帳戶改名／刪除需要連線。</p>
+    <p class="small muted">記帳（真實交易紀錄）、改狀態、登記成交、改單、加單、持倉與筆記會先存在這台裝置，有網路時自動送出。AI 診斷、更新現價、資產設定、帳戶改名／刪除需要連線。</p>
     <div class="foot"><button class="btn danger" data-act="cfReset" style="margin-right:auto">清除這台裝置的資料</button><button class="btn" data-act="cfEdit">更改連線設定</button><button class="btn primary" data-act="cfSync">立即同步</button></div></div>`;
 }
 function syncWire() {
@@ -742,6 +776,7 @@ function fxConv(v, from, to, d) {
 }
 function toDisplay(raw) {
   if (!raw || raw.needsSetup) return raw;
+  if (!raw.real) raw.real = [];
   const s = JSON.parse(JSON.stringify(raw));
   const noFx = !(raw.fx && raw.fx.latest);
   const am = {};
@@ -756,7 +791,7 @@ function toDisplay(raw) {
     am[a.name] = a;
   });
   s.orders.forEach(o => { const a = am[o.asset]; if (a && a.f !== 1 && o.price !== null) o.price *= a.f; });
-  s.trades.forEach(t => {
+  s.trades.concat(s.real).forEach(t => {
     const a = am[t.asset]; if (!a || a.dccy === a.ccy) return;
     const k = fxConv(1, a.ccy, a.dccy, t.d) || a.f;
     if (t.price !== null) t.price *= k;
@@ -782,6 +817,8 @@ function setState(s) {
   // 清掉已不存在的選取
   const ids = new Set(s.orders.map(o => o.id));
   [...A.sel].forEach(id => { if (!ids.has(id)) A.sel.delete(id); });
+  const rids = new Set(s.real.map(t => t.id));
+  [...A.rsel].forEach(id => { if (!rids.has(id)) A.rsel.delete(id); });
   const accts = s.settings.accounts;
   if (accts.indexOf(A.acct) < 0) A.acct = accts[0];
   $('gAcct').innerHTML = accts.map(a => `<option ${a === A.acct ? 'selected' : ''}>${esc(a)}</option>`).join('');
@@ -809,6 +846,7 @@ function derive() {
       (o.status === ST.PLAN && Math.abs(o.pct) <= alert) ? 'near' : '';
   });
   s.trades.forEach(t => t.amt = (t.price || 0) * (t.qty || 0));
+  s.real.forEach(t => t.amt = (t.price || 0) * (t.qty || 0));
   s.holdings.forEach(h => {
     let b = 0, sl = 0;
     if (h.qty !== null && h.time) s.trades.forEach(t => {
@@ -861,9 +899,10 @@ function go(v, extra) {
 function render() {
   if (!A.s) return;
   if (A.s.needsSetup) return renderSetup();
-  const f = { overview: vOverview, asset: vAsset, orders: vOrders, sim: vSim, trades: vTrades, settings: vSettings }[A.view];
+  const f = { overview: vOverview, asset: vAsset, orders: vOrders, sim: vSim, trades: vTrades, real: vReal, settings: vSettings }[A.view];
   f();
   renderBatch();
+  renderRealBatch();
 }
 
 // ───────────── 初始化畫面 ─────────────
@@ -1218,7 +1257,8 @@ function vOrders() {
 
 function renderBatch() {
   let el = document.querySelector('.batch');
-  if (A.view !== 'orders' || !A.sel.size) { if (el) el.remove(); return; }
+  if (A.view !== 'orders') { if (el && A.view !== 'real') el.remove(); return; }
+  if (!A.sel.size) { if (el) el.remove(); return; }
   if (!el) { el = document.createElement('div'); el.className = 'batch'; document.body.appendChild(el); }
   const sel = A.s.orders.filter(o => A.sel.has(o.id));
   el.innerHTML = `<b>已選 ${sel.length} 張</b>
@@ -1256,7 +1296,7 @@ function openFill(ids) {
     <td><input type="number" step="any" data-f="qty" data-id="${esc(o.id)}" value="${o.qty}" style="width:100px;text-align:right"></td></tr>`).join('');
   modal(`<h3>登記成交（${os.length} 張）</h3>
     <div class="tw" style="max-height:260px"><table><thead><tr><th class="l">掛單</th><th>成交價（原幣）</th><th>成交數量</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <p class="muted small">預設帶入設定價與最終數量；部分成交就改數量。</p>
+    <p class="muted small">預設帶入設定價與最終數量；部分成交就改數量。${os.some(o => o.status === ST.PLACED) ? '原本「已掛單」的單會同時自動寫進「真實交易紀錄」並標示待確認。' : ''}</p>
     <div class="fg"><label>成交時間<input type="datetime-local" id="fTime" value="${toLocalInput()}"></label>
       <label>手續費率（%）<input type="number" step="any" id="fFee" value="${+(st.feeRate * 100).toFixed(4)}"></label>
       <label>交易所<input type="text" id="fExch" value="${esc(st.defExch)}"></label>
@@ -1593,7 +1633,8 @@ function vTrades() {
   const s = A.s, f = A.tf;
   const list = s.trades.filter(t => inAcct(t) && (f.asset === '全部' || t.asset === f.asset) && (f.side === '全部' || t.side === f.side))
     .sort((a, b) => (b.time || 0) - (a.time || 0) || (b.id > a.id ? 1 : -1));
-  let h = `<h1>成交紀錄 <small>${list.length} 筆</small><span class="sp"></span><button class="btn" data-act="addTrade">＋ 新增成交</button></h1>
+  let h = `<h1>掛單成交狀態 <small>${list.length} 筆</small><span class="sp"></span><button class="btn" data-act="addTrade">＋ 新增成交</button></h1>
+  <p class="small muted" style="margin-top:-6px">掛單簿裡的單登記為「已成交」時的紀錄，用來計算階梯計畫的完成度與兌現。實際的買賣帳請看「真實交易紀錄」。</p>
   <div class="filters"><select data-act="tfAsset"><option value="全部">全部資產</option>${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
   <div class="seg">${['全部', '賣', '買'].map(x => `<button data-act="tfSide" data-v="${x}" class="${f.side === x ? 'on' : ''}">${x === '全部' ? '買＋賣' : x === '賣' ? '賣出' : '買入'}</button>`).join('')}</div></div>`;
   const assets = s.assets.filter(a => list.some(t => t.asset === a.name));
@@ -1609,7 +1650,7 @@ function vTrades() {
     });
     h += '</div>';
   }
-  if (!list.length) { view().innerHTML = h + '<div class="card empty">還沒有成交紀錄</div>'; return; }
+  if (!list.length) { view().innerHTML = h + '<div class="card empty">還沒有掛單成交紀錄</div>'; return; }
   h += `<div class="tw" style="max-height:calc(100vh - 300px)"><table><thead><tr><th class="l">ID</th><th class="l">成交時間</th><th class="l">帳戶</th><th class="l">資產</th><th class="c">方向</th><th>成交價</th><th>數量</th><th>金額</th><th>手續費</th><th class="l">交易所</th><th class="l">對應掛單</th><th class="l">備註</th></tr></thead><tbody>`;
   list.forEach(t => {
     h += `<tr style="cursor:pointer" data-act="editTrade" data-id="${esc(t.id)}"><td class="l tlink">${esc(t.id)}</td><td class="l">${t.time ? fdate(t.time) : '<span class="muted">2026 以前</span>'}</td>
@@ -1622,8 +1663,8 @@ function openTrade(id) {
   const s = A.s, t = id ? A.raw.trades.find(x => x.id === id) : null;
   const acct = t ? t.acct : A.acct;
   const asset = t ? t.asset : (A.tf.asset !== '全部' ? A.tf.asset : A.asset);
-  modal(`<h3>${t ? '編輯成交紀錄 ' + esc(t.id) : '新增成交紀錄'}</h3>
-    ${t && t.oid ? `<p class="muted small">對應掛單 ${esc(t.oid)}</p>` : '<p class="muted small">不在掛單簿裡的交易（例如市價單）也可以記在這裡。</p>'}
+  modal(`<h3>${t ? '編輯掛單成交 ' + esc(t.id) : '新增掛單成交'}</h3>
+    ${t && t.oid ? `<p class="muted small">對應掛單 ${esc(t.oid)}</p>` : '<p class="muted small">這裡只記掛單計畫的成交。不在掛單簿裡的實際交易（市價單、定投…）請記在「真實交易紀錄」。</p>'}
     <div class="fg"><label>帳戶<select id="tA">${s.settings.accounts.map(a => `<option ${a === acct ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
       <label>資產<select id="tS">${s.assets.map(a => `<option ${a.name === asset ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
       <label>方向<select id="tD"><option ${t && t.side === '買' ? 'selected' : ''}>買</option><option ${t && t.side === '賣' ? 'selected' : ''}>賣</option></select></label>
@@ -1636,7 +1677,7 @@ function openTrade(id) {
     <div class="foot">${t ? '<button class="btn danger" data-m="del" style="margin-right:auto">刪除</button>' : ''}<button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
     if (act === 'del') {
       closeModal();
-      confirmBox('刪除成交紀錄 ' + t.id, t.oid ? `對應的掛單 ${esc(t.oid)} 會從「已成交」改回「已掛單」。` : '刪除後無法復原。', '刪除', () => call('api_deleteTrade', [t.id], () => { toast('已刪除'); render(); }));
+      confirmBox('刪除掛單成交 ' + t.id, t.oid ? `對應的掛單 ${esc(t.oid)} 會從「已成交」改回「已掛單」。${A.s.real.some(r => r.logId === t.id && !r.confirmed) ? '自動寫入、尚未確認的真實交易也會一起移除。' : ''}` : '刪除後無法復原。', '刪除', () => call('api_deleteTrade', [t.id], () => { toast('已刪除'); render(); }));
       return;
     }
     if (act !== 'ok') return;
@@ -1698,9 +1739,9 @@ function vSettings() {
   const cnt = (list, a) => list.filter(x => x.acct === a).length;
   let h = `<h1>設定</h1>${syncCard()}<div class="grid g2${GAS ? '' : ' mt'}">
   <div class="card"><h2>帳戶</h2>
-    <div class="tw"><table><thead><tr><th class="l">名稱</th><th>掛單</th><th>成交紀錄</th><th>持倉列</th><th></th></tr></thead><tbody>
+    <div class="tw"><table><thead><tr><th class="l">名稱</th><th>掛單</th><th>掛單成交</th><th>真實交易</th><th>持倉列</th><th></th></tr></thead><tbody>
     ${st.accounts.map(a => `<tr><td class="l"><b>${esc(a)}</b>${a === A.acct ? ' <span class="pending" style="background:var(--accent-wash);color:var(--accent-ink)">目前</span>' : ''}</td>
-      <td>${cnt(s.orders, a)}</td><td>${cnt(s.trades, a)}</td><td>${cnt(s.holdings, a)}</td>
+      <td>${cnt(s.orders, a)}</td><td>${cnt(s.trades, a)}</td><td>${cnt(s.real, a)}</td><td>${cnt(s.holdings, a)}</td>
       <td style="white-space:nowrap">${a === A.acct ? '' : `<button class="btn sm" data-act="acctUse" data-a="${esc(a)}">切換</button> `}<button class="btn sm" data-act="acctRen" data-a="${esc(a)}">改名</button> <button class="btn sm danger" data-act="acctDel" data-a="${esc(a)}" ${st.accounts.length <= 1 ? 'disabled' : ''}>刪除</button></td></tr>`).join('')}
     </tbody></table></div>
     <div class="row mt"><input type="text" id="newAcct" placeholder="新帳戶名稱" style="flex:1;min-width:120px"><button class="btn" data-act="acctAdd">＋ 新增帳戶</button></div></div>
@@ -1731,7 +1772,7 @@ function vSettings() {
   view().innerHTML = h;
 }
 function acctRename(a) {
-  modal(`<h3>帳戶改名</h3><p class="small muted">「${esc(a)}」的掛單、成交紀錄、持倉與筆記都會一起改成新名稱。</p>
+  modal(`<h3>帳戶改名</h3><p class="small muted">「${esc(a)}」的掛單、掛單成交、真實交易、持倉與筆記都會一起改成新名稱。</p>
     <div class="fg"><label class="full">新名稱<input type="text" id="rnName" value="${esc(a)}" maxlength="20"></label></div>
     <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">改名</button></div>`, act => {
     if (act !== 'ok') return;
@@ -1743,11 +1784,11 @@ function acctRename(a) {
   });
 }
 function acctDelete(a) {
-  const s = A.s, n1 = s.orders.filter(x => x.acct === a).length, n2 = s.trades.filter(x => x.acct === a).length, n3 = s.holdings.filter(x => x.acct === a).length;
+  const s = A.s, n1 = s.orders.filter(x => x.acct === a).length, n2 = s.trades.filter(x => x.acct === a).length, n3 = s.holdings.filter(x => x.acct === a).length, n4 = s.real.filter(x => x.acct === a).length;
   const hasNote = (s.settings.notes[a] || '').trim() !== '';
   modal(`<h3 style="color:var(--bad)">刪除帳戶「${esc(a)}」</h3>
     <p>會一併<b>永久刪除</b>這個帳戶的：</p>
-    <ul style="color:var(--ink2);padding-left:18px"><li>${n1} 張掛單</li><li>${n2} 筆成交紀錄</li><li>${n3} 列持倉</li><li>${hasNote ? '策略筆記' : '策略筆記（目前是空的）'}</li></ul>
+    <ul style="color:var(--ink2);padding-left:18px"><li>${n1} 張掛單</li><li>${n2} 筆掛單成交</li><li>${n4} 筆真實交易</li><li>${n3} 列持倉</li><li>${hasNote ? '策略筆記' : '策略筆記（目前是空的）'}</li></ul>
     <div class="note-box">⚠ 刪除後無法復原。如果只是不想看到，可以不要切換到這個帳戶。</div>
     <label class="chk"><input type="checkbox" id="delSure"><span>我確認要刪除「${esc(a)}」與上面所有資料</span></label>
     <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn danger" data-m="ok" id="delOk" disabled>刪除帳戶</button></div>`, act => {
@@ -1764,7 +1805,7 @@ function assetRow(a, i) {
     <td><input class="in" style="width:100px;border-color:var(--line);background:#fff" data-f="manual" type="number" step="any" value="${a.manual === null || a.manual === undefined ? '' : a.manual}"></td>
     <td><input class="in" style="width:60px;border-color:var(--line);background:#fff" data-f="qd" type="number" step="1" value="${a.qd}"></td>
     <td><input class="in" style="width:60px;border-color:var(--line);background:#fff" data-f="pd" type="number" step="1" value="${a.pd}"></td>
-    <td class="l"><select data-f="ccy" style="height:28px" ${a.name && A.raw && (A.raw.orders.some(o => o.asset === a.name) || A.raw.trades.some(t => t.asset === a.name)) ? 'disabled title="已有掛單或成交紀錄，不能改計價幣別"' : ''}>${['USD', 'CNY', 'TWD', 'HKD'].map(c => `<option value="${c}" ${(a.ccy || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></td>
+    <td class="l"><select data-f="ccy" style="height:28px" ${a.name && A.raw && (A.raw.orders.some(o => o.asset === a.name) || A.raw.trades.some(t => t.asset === a.name) || A.raw.real.some(t => t.asset === a.name)) ? 'disabled title="已有掛單或成交紀錄，不能改計價幣別"' : ''}>${['USD', 'CNY', 'TWD', 'HKD'].map(c => `<option value="${c}" ${(a.ccy || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></td>
     <td class="l"><input class="in" style="width:56px;text-align:left;border-color:var(--line);background:#fff" data-f="unit" value="${esc(a.unit || '')}" placeholder="${esc(a.name || '')}"></td>
     <td class="l"><input class="in" style="width:150px;text-align:left;border-color:var(--line);background:#fff" data-f="logo" value="${esc(a.logo || '')}" placeholder="https:&#47;&#47;…png"></td>
     <td class="l"><input class="in" style="width:150px;text-align:left;border-color:var(--line);background:#fff" data-f="note" value="${esc(a.note)}"></td>
@@ -2014,7 +2055,7 @@ function ordersPdfHtml(list, opt) {
     });
     h += '</tbody></table></div>';
   });
-  return h + `<div class="pq-ft">資產掛單規劃本 Asset Ladder Planner · ${esc(fdate(Date.now()))} · 價格與百分比為產生當下的數字</div></div>`;
+  return h + `<div class="pq-ft">資產買賣紀錄與掛單規劃本 Asset Trade & Ladder Planner · ${esc(fdate(Date.now()))} · 價格與百分比為產生當下的數字</div></div>`;
 }
 function openOrdersPdf() {
   const list = A.s.orders.filter(visibleInOrders);
@@ -2026,7 +2067,7 @@ function openOrdersPdf() {
     <label class="chk"><input type="checkbox" id="pdN" checked><span>包含備註欄</span></label>
     <div id="pdMsg"></div>
     <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn" data-m="print" title="用瀏覽器的列印視窗，目的地選「另存為 PDF」">用列印存成 PDF</button><button class="btn primary" data-m="ok" id="pdOk">下載 PDF</button></div>`, act => {
-    const opt = { title: $('pdT').value.trim() || '資產掛單規劃本', notes: $('pdN').checked };
+    const opt = { title: $('pdT').value.trim() || '資產買賣紀錄與掛單規劃本', notes: $('pdN').checked };
     const html = ordersPdfHtml(list, opt);
     const fname = pdfName('orders', A.of.asset === '全部' ? 'all' : A.of.asset);
     if (act === 'print') { closeModal(); return prepIcons(list.map(o => o.asset)).then(() => printHtml(ordersPdfHtml(list, opt))); }
@@ -2040,7 +2081,7 @@ function aiPdf(acct, asset) {
   const html = `<div class="pdoc"><div class="pq-h1">${pdfLogo(asset, 22)} ${esc(asset)} AI 診斷</div><div class="pq-sub">帳戶：${esc(acct)}　·　${esc(fdate(r.time))}　·　${esc(aiModelName(r.model))}</div>
     <div class="md">${md(r.content, src.length)}</div>
     ${src.length ? `<div class="srcs"><b>資料來源</b><ol>${src.map(x => `<li>${esc(x.title || '')} <a href="${esc(x.url)}">${esc(x.url)}</a></li>`).join('')}</ol></div>` : ''}
-    <div class="pq-ft">資產掛單規劃本 Asset Ladder Planner · AI 產生的參考意見，不構成投資建議</div></div>`;
+    <div class="pq-ft">資產買賣紀錄與掛單規劃本 Asset Trade & Ladder Planner · AI 產生的參考意見，不構成投資建議</div></div>`;
   makePdf(html, pdfName('AI', asset, r.time), $('aiPdf'), $('aiProg'));
 }
 // 檔名只用英數字（部分瀏覽器遇到中文檔名會變成沒有副檔名的 download）
@@ -2078,6 +2119,155 @@ function printHtml(html) {
   if (!p) { p = document.createElement('div'); p.id = 'printArea'; document.body.appendChild(p); }
   p.innerHTML = `<style>${PDF_CSS} @media print { body > *:not(#printArea) { display: none !important; } #printArea { display: block !important; } .pdoc { width: auto; } .pdoc tr, .pdoc .ph { break-inside: avoid; } @page { size: A4; margin: 10mm; } } #printArea { display: none; }</style>${html}`;
   setTimeout(() => { window.print(); }, 80);
+}
+
+// ═════════════ 真實交易紀錄 ═════════════
+const SRC_LBL = { '手動': '手動', '匯入': '匯入', '掛單成交': '掛單成交' };
+function realList() {
+  const s = A.s, f = A.rf;
+  return s.real.filter(t => inAcct(t) && (f.asset === '全部' || t.asset === f.asset) && (f.side === '全部' || t.side === f.side) && (!f.pending || !t.confirmed) &&
+    (!f.year || (t.time && String(new Date(t.time).getFullYear()) === f.year)))
+    .sort((a, b) => (b.time || 0) - (a.time || 0) || (b.id > a.id ? 1 : -1));
+}
+/** 依真實交易算：買／賣合計、淨部位、平均成本（移動平均） */
+function realStats(asset, acct) {
+  const ts = A.s.real.filter(t => t.acct === (acct || A.acct) && t.asset === asset).sort((a, b) => (a.time || 0) - (b.time || 0) || (a.id > b.id ? 1 : -1));
+  const o = { n: ts.length, bq: 0, bv: 0, sq: 0, sv: 0, fee: 0, pos: 0, cost: 0, pending: 0 };
+  ts.forEach(t => {
+    o.fee += t.fee || 0; if (!t.confirmed) o.pending++;
+    if (t.side === '買') { o.bq += t.qty; o.bv += t.amt; o.cost += t.amt; o.pos += t.qty; }
+    else { o.sq += t.qty; o.sv += t.amt; const avg = o.pos > 0 ? o.cost / o.pos : 0; o.pos -= t.qty; o.cost = Math.max(0, o.cost - avg * t.qty); }
+  });
+  o.avg = o.pos > 1e-12 ? o.cost / o.pos : null;
+  return o;
+}
+function vReal() {
+  const s = A.s, f = A.rf, list = realList();
+  const all = s.real.filter(inAcct), pending = all.filter(t => !t.confirmed);
+  const years = [...new Set(all.filter(t => t.time).map(t => String(new Date(t.time).getFullYear())))].sort().reverse();
+  let h = `<h1>真實交易紀錄 <small>${list.length} / ${all.length} 筆 · ${esc(A.acct)}</small><span class="sp"></span>
+    <button class="btn" data-act="realImport">⇪ 匯入</button><button class="btn" data-act="addReal">＋ 新增交易</button></h1>
+    <p class="small muted" style="margin-top:-6px">這裡是你實際成交的買賣（含掛單以外的交易，例如市價單、定投、轉帳換幣）。掛單簿裡「已掛單」的單登記成交時，會自動寫進來並標示<b>待確認</b>；其他紀錄都由你自己新增或修改。</p>`;
+  if (pending.length) h += `<div class="alerts"><div class="alert near" data-act="rfPending"><b>${pending.length}</b> 筆由掛單成交自動寫入的交易待確認 →</div></div>`;
+  h += `<div class="filters"><select data-act="rfAsset"><option value="全部">全部資產</option>${s.assets.map(a => `<option ${f.asset === a.name ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+    <div class="seg">${['全部', '買', '賣'].map(x => `<button data-act="rfSide" data-v="${x}" class="${f.side === x ? 'on' : ''}">${x === '全部' ? '買＋賣' : x === '賣' ? '賣出' : '買入'}</button>`).join('')}</div>
+    <select data-act="rfYear"><option value="">全部年份</option>${years.map(y => `<option ${f.year === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
+    <button class="chipbtn ${f.pending ? 'on' : ''}" data-act="rfTogglePending">只看待確認</button></div>`;
+  const assets = s.assets.filter(a => all.some(t => t.asset === a.name) && (f.asset === '全部' || a.name === f.asset));
+  if (assets.length) {
+    h += '<div class="kpis" style="margin-bottom:12px">';
+    assets.forEach(a => {
+      const st = realStats(a.name), hi = holdingInfo(a.name), hq = hi.q;
+      const diff = hq !== null && hq !== undefined ? st.pos - hq : null;
+      h += `<div class="kpi"><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆　手續費 ${fusd(st.fee, a.name)}</div>
+        <div class="kv" style="margin-top:4px"><span>買入</span><b>${fq(st.bq, a.name)}<small>${fusd(st.bv, a.name)} · 均 ${st.bq ? fp(st.bv / st.bq, a.name) : '—'}</small></b>
+        <span>賣出</span><b>${fq(st.sq, a.name)}<small>${fusd(st.sv, a.name)} · 均 ${st.sq ? fp(st.sv / st.sq, a.name) : '—'}</small></b>
+        <span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${st.avg ? '平均成本 ' + fp(st.avg, a.name) : ''}</small></b>
+        <span>淨現金流</span><b class="${st.sv - st.bv - st.fee >= 0 ? 'up' : 'down'}">${fusd(st.sv - st.bv - st.fee, a.name)}</b>
+        <span>設定的持倉</span><b>${hq === null || hq === undefined ? '<span class="muted">未設定</span>' : fq(hq, a.name)}${diff !== null && Math.abs(diff) > Math.pow(10, -qdOf(a.name)) / 2 ? `<small class="${diff > 0 ? 'up' : 'down'}">差 ${diff > 0 ? '+' : ''}${fq(diff, a.name)}</small>` : ''}</b></div>
+        ${diff === null || Math.abs(diff) > Math.pow(10, -qdOf(a.name)) / 2 ? `<div style="margin-top:6px"><span class="tlink small" data-act="realToHold" data-asset="${esc(a.name)}">以淨部位 ${fq(st.pos, a.name)} 更新持倉 →</span></div>` : ''}</div>`;
+    });
+    h += '</div>';
+  }
+  if (!list.length) { view().innerHTML = h + `<div class="card empty">${all.length ? '沒有符合篩選的紀錄' : '還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。'}</div>`; return; }
+  const selAll = list.every(t => A.rsel.has(t.id));
+  h += `<div class="tw" style="max-height:calc(100vh - 300px)"><table><thead><tr><th class="c"><input type="checkbox" data-act="rselAll" ${selAll ? 'checked' : ''}></th><th class="l">時間</th><th class="l">資產</th><th class="c">方向</th><th>價格</th><th>數量</th><th>金額</th><th>手續費</th><th class="l">交易所</th><th class="l">來源</th><th class="l">備註</th><th></th></tr></thead><tbody>`;
+  list.forEach(t => {
+    const pend = !t.confirmed;
+    h += `<tr class="${pend ? 'r-pend' : ''} ${A.rsel.has(t.id) ? 'sel' : ''}"><td class="c"><input type="checkbox" data-act="rsel" data-id="${esc(t.id)}" ${A.rsel.has(t.id) ? 'checked' : ''}></td>
+      <td class="l">${t.time ? fdate(t.time) : '<span class="muted">未填</span>'}</td><td class="l">${logo(t.asset, 16)} ${esc(t.asset)}</td>
+      <td class="c"><span class="st ${t.side === '買' ? 's-placed' : 's-plan'}" style="cursor:default">${esc(t.side)}</span></td>
+      <td>${fp(t.price, t.asset)}</td><td><b>${fq(t.qty, t.asset)}</b></td><td>${fusd(t.amt, t.asset)}</td><td>${t.fee === null ? '' : fusd(t.fee, t.asset)}</td>
+      <td class="l">${esc(t.exch)}</td><td class="l" style="white-space:nowrap">${t.source === '掛單成交' ? (pend ? `<span class="pending" style="background:var(--warn-bg);color:var(--warn)">⚠ 待確認</span> <button class="btn sm" data-act="realConfirm" data-id="${esc(t.id)}">確認</button>` : '掛單成交 ✓') : esc(SRC_LBL[t.source] || t.source)}${t.logId ? ` <span class="muted small">${esc(t.logId)}</span>` : ''}</td>
+      <td class="l muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.note)}">${esc(t.note)}</td>
+      <td><button class="ibtn" data-act="editReal" data-id="${esc(t.id)}" title="編輯">✎</button></td></tr>`;
+  });
+  view().innerHTML = h + '</tbody></table></div>';
+}
+function renderRealBatch() {
+  let el = document.querySelector('.batch');
+  if (A.view !== 'real') return;
+  if (!A.rsel.size) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.className = 'batch'; document.body.appendChild(el); }
+  const ids = [...A.rsel], pend = A.s.real.filter(t => ids.indexOf(t.id) >= 0 && !t.confirmed).length;
+  el.innerHTML = `<b>已選 ${ids.length} 筆</b>${pend ? `<button class="btn sm primary" data-act="rbConfirm">確認 ${pend} 筆</button>` : ''}<button class="btn sm danger" data-act="rbDel">刪除</button><button class="btn sm" data-act="rbClear">取消選取</button>`;
+}
+function openReal(id) {
+  const s = A.s, t = id ? A.raw.real.find(x => x.id === id) : null;
+  const asset = t ? t.asset : (A.rf.asset !== '全部' ? A.rf.asset : A.asset);
+  modal(`<h3>${t ? '編輯交易 ' + esc(t.id) : '新增真實交易'}</h3>
+    ${t && t.source === '掛單成交' ? `<p class="muted small">由掛單成交自動寫入${t.logId ? '（掛單成交狀態 ' + esc(t.logId) + '）' : ''}${t.confirmed ? '' : '，儲存後視同已確認'}。</p>` : '<p class="muted small">實際在交易所或券商成交的買賣。價格與手續費用該資產的計價幣別。</p>'}
+    <div class="fg"><label>帳戶<select id="rA">${s.settings.accounts.map(a => `<option ${a === (t ? t.acct : A.acct) ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select></label>
+      <label>資產<select id="rS">${s.assets.map(a => `<option ${a.name === asset ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+      <label>方向<select id="rD"><option ${t && t.side === '賣' ? 'selected' : ''}>買</option><option ${t && t.side === '賣' ? 'selected' : ''}>賣</option></select></label>
+      <label>時間<input type="datetime-local" id="rT" value="${t ? (t.time ? toLocalInput(t.time) : '') : toLocalInput()}"></label>
+      <label>價格（<span class="rCcy"></span>）<input type="number" step="any" id="rP" value="${t ? t.price : ''}"></label>
+      <label>數量（<span class="rUnit"></span>）<input type="number" step="any" id="rQ" value="${t ? t.qty : ''}"></label>
+      <label>手續費（<span class="rCcy"></span>）<input type="number" step="any" id="rF" value="${t && t.fee !== null ? t.fee : ''}"></label>
+      <label>交易所／券商<input type="text" id="rE" value="${esc(t ? t.exch : s.settings.defExch)}"></label>
+      <label class="full">備註<input type="text" id="rN" value="${esc(t ? t.note : '')}"></label></div>
+    <div class="foot">${t ? '<button class="btn danger" data-m="del" style="margin-right:auto">刪除</button>' : ''}<button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
+    if (act === 'del') { closeModal(); return confirmBox('刪除交易 ' + t.id, '刪除後無法復原。', '刪除', () => call('api_deleteReal', [[t.id]], () => { A.rsel.delete(t.id); toast('已刪除'); render(); })); }
+    if (act !== 'ok') return;
+    const rec = { id: t ? t.id : '', acct: $('rA').value, asset: $('rS').value, side: $('rD').value, time: fromLocalInput($('rT').value),
+      price: $('rP').value, qty: $('rQ').value, fee: $('rF').value, exch: $('rE').value, note: $('rN').value };
+    if (!(num(rec.price) > 0) || !(num(rec.qty) > 0)) return toast('請填價格與數量', true);
+    closeModal();
+    call('api_saveReal', [rec], () => { toast('已儲存'); render(); });
+  });
+  if (t && t.side === '賣') $('rD').value = '賣';
+  const upC = () => { document.querySelectorAll('#dlg .rCcy').forEach(e => e.textContent = nativeCcy($('rS').value)); document.querySelectorAll('#dlg .rUnit').forEach(e => e.textContent = unitOf($('rS').value)); };
+  $('rS').onchange = upC; upC();
+}
+/** 解析貼上的文字：每行一筆，欄位用 Tab、逗號或多個空白分隔：日期 資產 方向 價格 數量 [手續費] [交易所] [備註] */
+function parseRealText(txt) {
+  const out = [], bad = [];
+  const am = {}; A.s.assets.forEach(a => am[a.name.toUpperCase()] = a.name);
+  String(txt || '').split(/\r?\n/).forEach((line, i) => {
+    const raw = line.trim(); if (!raw) return;
+    let c = raw.indexOf('\t') >= 0 ? raw.split('\t') : raw.indexOf(',') >= 0 ? raw.split(',') : raw.split(/\s{2,}|\s/);
+    c = c.map(x => x.trim());
+    if (i === 0 && /日期|時間|date|資產|asset/i.test(raw) && !/\d{4}/.test(c[0])) return;   // 標題列
+    if (c.length < 5) { bad.push([i + 1, raw, '欄位不足（至少：日期 資產 方向 價格 數量）']); return; }
+    const d = c[0].replace(/\//g, '-').replace(/\./g, '-'), ms = new Date(d.indexOf('T') >= 0 || / /.test(d) ? d.replace(' ', 'T') : d + 'T12:00').getTime();
+    const asset = am[c[1].toUpperCase()];
+    const side = /^(買|买|buy|b|long)$/i.test(c[2]) ? '買' : /^(賣|卖|sell|s|short)$/i.test(c[2]) ? '賣' : '';
+    const price = num(c[3]), qty = num(c[4]), fee = c[5] !== undefined && c[5] !== '' ? num(c[5]) : null;
+    if (!isFinite(ms)) bad.push([i + 1, raw, '日期看不懂（請用 2024-05-20 或 2024-05-20 14:30）']);
+    else if (!asset) bad.push([i + 1, raw, '資產「' + c[1] + '」不在設定裡']);
+    else if (!side) bad.push([i + 1, raw, '方向要是 買／賣']);
+    else if (!(price > 0) || !(qty > 0)) bad.push([i + 1, raw, '價格或數量不是正數']);
+    else out.push({ time: ms, asset: asset, side: side, price: price, qty: qty, fee: fee, exch: c[6] || '', note: c.slice(7).join(' ') });
+  });
+  return { rows: out, bad: bad };
+}
+function openRealImport() {
+  modal(`<h3>匯入真實交易紀錄</h3>
+    <p class="small muted" style="margin-top:0">把紀錄貼到下面，每行一筆，欄位用 Tab（從 Excel／試算表直接複製）或逗號分隔：<br><code>日期　資產　方向(買/賣)　價格　數量　[手續費]　[交易所]　[備註]</code><br>例：<code>2024-05-20 14:30, BTC, 買, 68500, 0.05, 3.4, Binance, 定投</code>。全部會記在帳戶 <b>${esc(A.acct)}</b> 下。</p>
+    <textarea id="riT" rows="9" placeholder="2024-05-20, BTC, 買, 68500, 0.05
+2024-06-02, ETH, 賣, 3800, 1.2, 4.5, OKX"></textarea>
+    <div id="riOut" class="small" style="margin-top:8px"></div>
+    <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok" id="riOk" disabled>匯入</button></div>`, act => {
+    if (act !== 'ok') return;
+    const r = parseRealText($('riT').value);
+    if (!r.rows.length) return;
+    closeModal();
+    call('api_importReal', [A.acct, r.rows], () => { toast(`✅ 已匯入 ${r.rows.length} 筆`); render(); });
+  }, 'wide');
+  const upd = () => {
+    const r = parseRealText($('riT').value);
+    $('riOk').disabled = !r.rows.length; $('riOk').textContent = r.rows.length ? `匯入 ${r.rows.length} 筆` : '匯入';
+    let h = '';
+    if (r.rows.length) {
+      const by = {}; r.rows.forEach(x => { const k = x.asset + x.side; by[k] = by[k] || { asset: x.asset, side: x.side, n: 0, q: 0 }; by[k].n++; by[k].q += x.qty; });
+      h += '<div class="chips">' + Object.values(by).map(x => `<span class="chipbtn on" style="cursor:default">${esc(x.asset)} ${x.side} ${x.n} 筆 · ${fq(x.q, x.asset)}</span>`).join('') + '</div>';
+      h += `<div class="tw" style="max-height:180px;margin-top:6px"><table><thead><tr><th class="l">時間</th><th class="l">資產</th><th class="c">方向</th><th>價格</th><th>數量</th><th>手續費</th><th class="l">交易所</th></tr></thead><tbody>` +
+        r.rows.slice(0, 50).map(x => `<tr><td class="l">${esc(fdate(x.time))}</td><td class="l">${esc(x.asset)}</td><td class="c">${x.side}</td><td>${fp(x.price, x.asset)}</td><td>${fq(x.qty, x.asset)}</td><td>${x.fee === null ? '' : fusd(x.fee, x.asset)}</td><td class="l">${esc(x.exch)}</td></tr>`).join('') + (r.rows.length > 50 ? `<tr><td colspan="7" class="muted">…其餘 ${r.rows.length - 50} 筆</td></tr>` : '') + '</tbody></table></div>';
+    }
+    if (r.bad.length) h += `<div class="note-box" style="margin-top:8px">${r.bad.length} 行無法解析（不會匯入）：<br>${r.bad.slice(0, 6).map(b => `第 ${b[0]} 行：${esc(b[2])}`).join('<br>')}${r.bad.length > 6 ? '<br>…' : ''}</div>`;
+    $('riOut').innerHTML = h;
+  };
+  $('riT').addEventListener('input', () => { clearTimeout(upd._t); upd._t = setTimeout(upd, 200); });
 }
 
 // ═════════════ 彈出視窗 ═════════════
@@ -2164,6 +2354,17 @@ document.addEventListener('click', e => {
     case 'bDel': return confirmBox(`刪除 ${A.sel.size} 張掛單`, '已成交單的成交紀錄會保留。刪除後無法復原。', '刪除', () => call('api_deleteOrders', [[...A.sel]], () => { toast('已刪除'); A.sel.clear(); render(); }));
     case 'bClear': A.sel.clear(); return render();
     case 'tfSide': A.tf.side = d.v; return render();
+    case 'rfSide': A.rf.side = d.v; return render();
+    case 'rfTogglePending': A.rf.pending = !A.rf.pending; return render();
+    case 'rfPending': A.rf = { asset: '全部', side: '全部', year: '', pending: true }; return render();
+    case 'editReal': return openReal(d.id);
+    case 'addReal': return openReal(null);
+    case 'realImport': return openRealImport();
+    case 'realConfirm': return call('api_confirmReal', [[d.id]], () => { toast('已確認'); render(); });
+    case 'realToHold': { const st = realStats(d.asset); return confirmBox(`更新 ${d.asset} 的持倉`, `把「設定 → 持倉」裡 ${esc(A.acct)} 的 ${esc(d.asset)} 基準持倉設為 <b>${fq(st.pos, d.asset)}</b>，基準時間＝現在。`, '更新', () => call('api_saveHolding', [{ acct: A.acct, asset: d.asset, qty: roundTo(st.pos, qdOf(d.asset)), time: Date.now() }], () => { toast('持倉已更新'); render(); })); }
+    case 'rbConfirm': return call('api_confirmReal', [[...A.rsel]], () => { toast('已確認'); A.rsel.clear(); render(); });
+    case 'rbDel': return confirmBox(`刪除 ${A.rsel.size} 筆真實交易`, '刪除後無法復原。', '刪除', () => call('api_deleteReal', [[...A.rsel]], () => { toast('已刪除'); A.rsel.clear(); render(); }));
+    case 'rbClear': A.rsel.clear(); return render();
     case 'editTrade': return openTrade(d.id);
     case 'addTrade': return openTrade(null);
     case 'holdTime': return openHoldTime(d.acct, d.asset);
@@ -2198,6 +2399,10 @@ document.addEventListener('change', e => {
     case 'ofAsset': A.of.asset = el.value; return render();
     case 'ofHint': A.of.hint = el.value; return render();
     case 'tfAsset': A.tf.asset = el.value; return render();
+    case 'rfAsset': A.rf.asset = el.value; return render();
+    case 'rfYear': A.rf.year = el.value; return render();
+    case 'rsel': if (el.checked) A.rsel.add(d.id); else A.rsel.delete(d.id); el.closest('tr').classList.toggle('sel', el.checked); return renderRealBatch();
+    case 'rselAll': realList().forEach(t => { if (el.checked) A.rsel.add(t.id); else A.rsel.delete(t.id); }); return render();
     case 'sel': if (el.checked) A.sel.add(d.id); else A.sel.delete(d.id); el.closest('tr').classList.toggle('sel', el.checked); return renderBatch();
     case 'selAll': case 'selGrp': {
       A.s.orders.filter(o => visibleInOrders(o) && (act === 'selAll' || o.acct + '|' + o.asset + '|' + o.side === d.k))
