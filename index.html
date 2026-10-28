@@ -522,26 +522,26 @@ const LOCAL = {
   },
   api_saveReal(s, t) {
     const price = nv(t.price), qty = nv(t.qty);
-    if (!t.acct || !t.asset || !t.side || !(price > 0) || !(qty > 0)) throw new Error('請填帳戶、資產、方向、價格、數量');
+    if (!t.acct || !t.asset || !t.side || !(price >= 0) || !(qty > 0)) throw new Error('請填帳戶、資產、方向、價格、數量');
     let row = s.real.find(x => x.id === t.id);
     if (!row && !t._new) throw new Error('找不到交易紀錄 ' + t.id);
     if (!row) { row = { id: t.id, source: '手動', logId: '', confirmed: true }; s.real.push(row); }
     else if (row.source === '掛單成交') row.confirmed = true;
     const time = nv(t.time);
     Object.assign(row, { time: time || null, d: time ? localDay(time) : '', acct: t.acct, asset: t.asset, side: t.side, price: price, qty: qty,
-      fee: nv(t.fee), exch: String(t.exch || '').trim(), note: String(t.note || '').trim() });
+      fee: nv(t.fee), exch: String(t.exch || '').trim(), note: String(t.note || '').trim(), ccy: t.ccy || '' });
   },
   api_deleteReal(s, ids) { const set = new Set(ids); s.real = s.real.filter(r => !set.has(r.id)); },
   api_confirmReal(s, ids) { const set = new Set(ids); s.real.forEach(r => { if (set.has(r.id)) r.confirmed = true; }); },
-  api_importReal(s, acct, items) {
+  api_importReal(s, acct, items, ccy) {
     if (s.settings.accounts.indexOf(acct) < 0) throw new Error('找不到帳戶 ' + acct);
     const am = {}; s.assets.forEach(a => am[a.name.toUpperCase()] = a.name);
     let n = 0;
     (items || []).forEach(it => {
       const asset = am[String(it.asset || '').toUpperCase()], price = nv(it.price), qty = nv(it.qty);
-      if (!asset || (it.side !== '買' && it.side !== '賣') || !(price > 0) || !(qty > 0) || s.real.some(r => r.id === it.id)) return;
+      if (!asset || (it.side !== '買' && it.side !== '賣') || !(price >= 0) || !(qty > 0) || s.real.some(r => r.id === it.id)) return;
       const time = nv(it.time);
-      s.real.push({ id: it.id, time: time || null, d: time ? localDay(time) : '', acct: acct, asset: asset, side: it.side, price: price, qty: qty, fee: nv(it.fee), exch: String(it.exch || '').trim(), source: '匯入', logId: '', confirmed: true, note: String(it.note || '').trim() });
+      s.real.push({ id: it.id, time: time || null, d: time ? localDay(time) : '', acct: acct, asset: asset, side: it.side, price: price, qty: qty, fee: nv(it.fee), exch: String(it.exch || '').trim(), source: '匯入', logId: '', confirmed: true, note: String(it.note || '').trim(), ccy: it.ccy || ccy || '' });
       n++;
     });
     if (!n) throw new Error('沒有可以匯入的資料（請檢查資產名稱、方向、價格與數量）');
@@ -791,11 +791,23 @@ function toDisplay(raw) {
     am[a.name] = a;
   });
   s.orders.forEach(o => { const a = am[o.asset]; if (a && a.f !== 1 && o.price !== null) o.price *= a.f; });
-  s.trades.concat(s.real).forEach(t => {
+  s.trades.forEach(t => {
     const a = am[t.asset]; if (!a || a.dccy === a.ccy) return;
     const k = fxConv(1, a.ccy, a.dccy, t.d) || a.f;
     if (t.price !== null) t.price *= k;
     if (t.fee !== null && t.fee !== undefined) t.fee *= k;
+  });
+  s.real.forEach(t => {
+    const a = am[t.asset]; if (!a) return;
+    t.ccy = t.ccy || a.ccy;              // 紀錄本身的幣別（例如用台幣買的）
+    t.price0 = t.price; t.fee0 = t.fee;  // 原始數字
+    if (t.ccy === a.dccy) return;
+    const k = fxConv(1, t.ccy, a.dccy, t.d);
+    if (k === null) { t.noFx = true; return; }   // 換不了就照原幣顯示（會標示）
+    if (t.price !== null) t.price *= k;
+    if (t.fee !== null && t.fee !== undefined) t.fee *= k;
+    const h = raw.fx && raw.fx.hist && raw.fx.hist[t.d];
+    if (h && h.approx) t.approx = true;
   });
   const cs = [...new Set(s.assets.map(a => a.dccy))];
   A.totCcy = A.ccy !== '原幣' && !noFx ? A.ccy : (cs.length === 1 ? cs[0] : 'USD');
@@ -2177,7 +2189,7 @@ function vReal() {
     h += `<tr class="${pend ? 'r-pend' : ''} ${A.rsel.has(t.id) ? 'sel' : ''}"><td class="c"><input type="checkbox" data-act="rsel" data-id="${esc(t.id)}" ${A.rsel.has(t.id) ? 'checked' : ''}></td>
       <td class="l">${t.time ? fdate(t.time) : '<span class="muted">未填</span>'}</td><td class="l">${logo(t.asset, 16)} ${esc(t.asset)}</td>
       <td class="c"><span class="st ${t.side === '買' ? 's-placed' : 's-plan'}" style="cursor:default">${esc(t.side)}</span></td>
-      <td>${fp(t.price, t.asset)}</td><td><b>${fq(t.qty, t.asset)}</b></td><td>${fusd(t.amt, t.asset)}</td><td>${t.fee === null ? '' : fusd(t.fee, t.asset)}</td>
+      <td>${t.noFx ? `<span class="muted" title="抓不到匯率，以原幣顯示">${esc(t.ccy)} </span>` : ''}${fp(t.price, t.asset)}${t.ccy !== ccyFor(t.asset) && !t.noFx ? `<br><small class="muted" title="原始紀錄${t.approx ? '；2024 年 3 月以前用年平均匯率換算' : ''}">${esc(SYM[t.ccy] || t.ccy)}${nf(t.price0, t.price0 >= 100 ? 0 : 4)}${t.approx ? '≈' : ''}</small>` : ''}</td><td><b>${fq(t.qty, t.asset)}</b></td><td>${fusd(t.amt, t.asset)}</td><td>${t.fee === null ? '' : fusd(t.fee, t.asset)}</td>
       <td class="l">${esc(t.exch)}</td><td class="l" style="white-space:nowrap">${t.source === '掛單成交' ? (pend ? `<span class="pending" style="background:var(--warn-bg);color:var(--warn)">⚠ 待確認</span> <button class="btn sm" data-act="realConfirm" data-id="${esc(t.id)}">確認</button>` : '掛單成交 ✓') : esc(SRC_LBL[t.source] || t.source)}${t.logId ? ` <span class="muted small">${esc(t.logId)}</span>` : ''}</td>
       <td class="l muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.note)}">${esc(t.note)}</td>
       <td><button class="ibtn" data-act="editReal" data-id="${esc(t.id)}" title="編輯">✎</button></td></tr>`;
@@ -2201,22 +2213,24 @@ function openReal(id) {
       <label>資產<select id="rS">${s.assets.map(a => `<option ${a.name === asset ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
       <label>方向<select id="rD"><option ${t && t.side === '賣' ? 'selected' : ''}>買</option><option ${t && t.side === '賣' ? 'selected' : ''}>賣</option></select></label>
       <label>時間<input type="datetime-local" id="rT" value="${t ? (t.time ? toLocalInput(t.time) : '') : toLocalInput()}"></label>
-      <label>價格（<span class="rCcy"></span>）<input type="number" step="any" id="rP" value="${t ? t.price : ''}"></label>
+      <label>價格<input type="number" step="any" id="rP" value="${t ? t.price : ''}" placeholder="轉入／轉出可填 0"></label>
       <label>數量（<span class="rUnit"></span>）<input type="number" step="any" id="rQ" value="${t ? t.qty : ''}"></label>
-      <label>手續費（<span class="rCcy"></span>）<input type="number" step="any" id="rF" value="${t && t.fee !== null ? t.fee : ''}"></label>
+      <label>價格與手續費的幣別<select id="rC">${['USD', 'TWD', 'CNY', 'HKD'].map(c => `<option value="${c}">${c}</option>`).join('')}</select></label>
+      <label>手續費<input type="number" step="any" id="rF" value="${t && t.fee !== null ? t.fee : ''}"></label>
       <label>交易所／券商<input type="text" id="rE" value="${esc(t ? t.exch : s.settings.defExch)}"></label>
       <label class="full">備註<input type="text" id="rN" value="${esc(t ? t.note : '')}"></label></div>
     <div class="foot">${t ? '<button class="btn danger" data-m="del" style="margin-right:auto">刪除</button>' : ''}<button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
     if (act === 'del') { closeModal(); return confirmBox('刪除交易 ' + t.id, '刪除後無法復原。', '刪除', () => call('api_deleteReal', [[t.id]], () => { A.rsel.delete(t.id); toast('已刪除'); render(); })); }
     if (act !== 'ok') return;
     const rec = { id: t ? t.id : '', acct: $('rA').value, asset: $('rS').value, side: $('rD').value, time: fromLocalInput($('rT').value),
-      price: $('rP').value, qty: $('rQ').value, fee: $('rF').value, exch: $('rE').value, note: $('rN').value };
-    if (!(num(rec.price) > 0) || !(num(rec.qty) > 0)) return toast('請填價格與數量', true);
+      price: $('rP').value, qty: $('rQ').value, fee: $('rF').value, exch: $('rE').value, note: $('rN').value, ccy: $('rC').value };
+    if (!(num(rec.price) >= 0) || !(num(rec.qty) > 0)) return toast('請填價格（可為 0）與數量', true);
     closeModal();
     call('api_saveReal', [rec], () => { toast('已儲存'); render(); });
   });
   if (t && t.side === '賣') $('rD').value = '賣';
-  const upC = () => { document.querySelectorAll('#dlg .rCcy').forEach(e => e.textContent = nativeCcy($('rS').value)); document.querySelectorAll('#dlg .rUnit').forEach(e => e.textContent = unitOf($('rS').value)); };
+  $('rC').value = t ? (t.ccy || nativeCcy(t.asset)) : nativeCcy(asset);
+  const upC = () => { document.querySelectorAll('#dlg .rUnit').forEach(e => e.textContent = unitOf($('rS').value)); if (!t) $('rC').value = nativeCcy($('rS').value); };
   $('rS').onchange = upC; upC();
 }
 /** 解析貼上的文字：每行一筆，欄位用 Tab、逗號或多個空白分隔：日期 資產 方向 價格 數量 [手續費] [交易所] [備註] */
@@ -2236,7 +2250,7 @@ function parseRealText(txt) {
     if (!isFinite(ms)) bad.push([i + 1, raw, '日期看不懂（請用 2024-05-20 或 2024-05-20 14:30）']);
     else if (!asset) bad.push([i + 1, raw, '資產「' + c[1] + '」不在設定裡']);
     else if (!side) bad.push([i + 1, raw, '方向要是 買／賣']);
-    else if (!(price > 0) || !(qty > 0)) bad.push([i + 1, raw, '價格或數量不是正數']);
+    else if (!(price >= 0) || !(qty > 0)) bad.push([i + 1, raw, '價格要 ≥ 0、數量要 > 0']);
     else out.push({ time: ms, asset: asset, side: side, price: price, qty: qty, fee: fee, exch: c[6] || '', note: c.slice(7).join(' ') });
   });
   return { rows: out, bad: bad };
@@ -2246,13 +2260,14 @@ function openRealImport() {
     <p class="small muted" style="margin-top:0">把紀錄貼到下面，每行一筆，欄位用 Tab（從 Excel／試算表直接複製）或逗號分隔：<br><code>日期　資產　方向(買/賣)　價格　數量　[手續費]　[交易所]　[備註]</code><br>例：<code>2024-05-20 14:30, BTC, 買, 68500, 0.05, 3.4, Binance, 定投</code>。全部會記在帳戶 <b>${esc(A.acct)}</b> 下。</p>
     <textarea id="riT" rows="9" placeholder="2024-05-20, BTC, 買, 68500, 0.05
 2024-06-02, ETH, 賣, 3800, 1.2, 4.5, OKX"></textarea>
+    <div class="row mt" style="gap:8px;align-items:center"><span class="small">這批紀錄的價格幣別</span><select id="riC"><option value="">各資產的計價幣別</option>${['USD', 'TWD', 'CNY', 'HKD'].map(c => `<option value="${c}">${c}（${ccyName(c)}）</option>`).join('')}</select></div>
     <div id="riOut" class="small" style="margin-top:8px"></div>
     <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok" id="riOk" disabled>匯入</button></div>`, act => {
     if (act !== 'ok') return;
     const r = parseRealText($('riT').value);
     if (!r.rows.length) return;
     closeModal();
-    call('api_importReal', [A.acct, r.rows], () => { toast(`✅ 已匯入 ${r.rows.length} 筆`); render(); });
+    call('api_importReal', [A.acct, r.rows, $('riC').value], () => { toast(`✅ 已匯入 ${r.rows.length} 筆`); render(); });
   }, 'wide');
   const upd = () => {
     const r = parseRealText($('riT').value);
