@@ -549,10 +549,11 @@ const LOCAL = {
   api_saveHolding(s, h) {
     if (!h.acct || !h.asset) throw new Error('請選帳戶與資產');
     let r = s.holdings.find(x => x.acct === h.acct && x.asset === h.asset);
-    if (!r) { r = { acct: h.acct, asset: h.asset, qty: null, time: null, note: '' }; s.holdings.push(r); }
+    if (!r) { r = { acct: h.acct, asset: h.asset, qty: null, time: null, note: '', mode: '手動' }; s.holdings.push(r); }
     if (h.qty !== undefined) r.qty = nv(h.qty);
     if (h.time !== undefined) r.time = nv(h.time) || null;
     if (h.note !== undefined) r.note = String(h.note || '').trim();
+    if (h.mode !== undefined) r.mode = h.mode === '真實交易' ? '真實交易' : '手動';
   },
   api_deleteHolding(s, acct, asset) { s.holdings = s.holdings.filter(x => !(x.acct === acct && x.asset === asset)); },
   api_saveSettings(s, x) {
@@ -861,6 +862,11 @@ function derive() {
   s.real.forEach(t => t.amt = (t.price || 0) * (t.qty || 0));
   s.holdings.forEach(h => {
     let b = 0, sl = 0;
+    if (h.mode === '真實交易') {
+      // 跟隨真實交易紀錄：估計持倉 = 買入總量 − 賣出總量
+      let pos = 0; s.real.forEach(t => { if (t.acct === h.acct && t.asset === h.asset) pos += (t.side === '買' ? 1 : -1) * (t.qty || 0); });
+      h.buy = 0; h.sell = 0; h.est = roundTo(pos, qdOf(h.asset)); return;
+    }
     if (h.qty !== null && h.time) s.trades.forEach(t => {
       if (t.acct === h.acct && t.asset === h.asset && t.time && t.time > h.time) { if (t.side === '買') b += t.qty || 0; else sl += t.qty || 0; }
     });
@@ -911,6 +917,7 @@ function go(v, extra) {
 function render() {
   if (!A.s) return;
   if (A.s.needsSetup) return renderSetup();
+  if (isLocked(A.acct)) { renderLock(); renderBatch(); renderRealBatch(); return; }
   const f = { overview: vOverview, asset: vAsset, orders: vOrders, sim: vSim, trades: vTrades, real: vReal, settings: vSettings }[A.view];
   f();
   renderBatch();
@@ -1657,8 +1664,7 @@ function vTrades() {
       const sq = sum(se, t => t.qty), sv = sum(se, t => t.amt), bq = sum(bu, t => t.qty), bv = sum(bu, t => t.amt), fee = sum(ts, t => t.fee);
       h += `<div class="kpi"><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　手續費 ${fusd(fee, a.name)}</div>
         <div class="kv" style="margin-top:4px"><span>賣出</span><b>${fq(sq, a.name)}<small>${fusd(sv, a.name)}</small></b><span>賣出均價</span><b>${sq ? fp(sv / sq, a.name) : '—'}</b>
-        <span>買入</span><b>${fq(bq, a.name)}<small>${fusd(bv, a.name)}</small></b><span>買入均價</span><b>${bq ? fp(bv / bq, a.name) : '—'}</b>
-        <span>淨現金流</span><b class="${sv - bv - fee >= 0 ? 'up' : 'down'}">${fusd(sv - bv - fee, a.name)}</b></div></div>`;
+        <span>買入</span><b>${fq(bq, a.name)}<small>${fusd(bv, a.name)}</small></b><span>買入均價</span><b>${bq ? fp(bv / bq, a.name) : '—'}</b></div></div>`;
     });
     h += '</div>';
   }
@@ -1706,20 +1712,22 @@ function openTrade(id) {
 // ═════════════ 持倉（在設定頁）═════════════
 function holdSection() {
   const s = A.s;
-  const rows = s.holdings.slice();
+  const rows = s.holdings.filter(h => !isLocked(h.acct));
   const have = new Set(s.holdings.map(h => h.acct + '|' + h.asset));
   const missing = [];
   s.orders.forEach(o => { const k = o.acct + '|' + o.asset; if (!have.has(k) && missing.indexOf(k) < 0) missing.push(k); });
-  let h = `<h2 style="margin-top:4px">持倉 <small class="muted" style="font-weight:400">基準持倉 + 之後登記的成交 = 估計目前持倉</small></h2>
-  <div class="small muted" style="margin-bottom:8px">在「基準持倉量」填你在交易所看到的實際數量，按 Enter 或離開欄位就會儲存，並把基準時間設成現在。之後登記的買入會加、賣出會減。2026 以前的原表成交（沒有日期）不會影響持倉。</div>`;
-  h += `<div class="tw"><table><thead><tr><th class="l">帳戶</th><th class="l">資產</th><th>基準持倉量</th><th class="l">基準時間</th><th>之後買入</th><th>之後賣出</th><th>估計目前持倉</th><th>現價</th><th>持倉價值</th><th>未成交賣單</th><th>未成交買單</th><th>全部成交後</th><th></th></tr></thead><tbody>`;
+  let h = `<h2 style="margin-top:4px">持倉 <small class="muted" style="font-weight:400">每個資產可選「手動」或「跟隨真實交易紀錄」</small></h2>
+  <div class="small muted" style="margin-bottom:8px"><b>手動</b>：在「基準持倉量」填你在交易所看到的實際數量（按 Enter 或離開欄位就會儲存，基準時間＝現在），之後登記的掛單成交買入會加、賣出會減。<b>跟隨真實交易紀錄</b>：估計持倉 = 真實交易紀錄的買入總量 − 賣出總量，不用手動維護。2026 以前的原表成交（沒有日期）不會影響持倉。</div>`;
+  h += `<div class="tw"><table><thead><tr><th class="l">帳戶</th><th class="l">資產</th><th class="l">模式</th><th>基準持倉量</th><th class="l">基準時間</th><th>之後買入</th><th>之後賣出</th><th>估計目前持倉</th><th>現價</th><th>持倉價值</th><th>未成交賣單</th><th>未成交買單</th><th>全部成交後</th><th></th></tr></thead><tbody>`;
   if (!rows.length) h += '<tr><td colspan="13" class="empty">還沒有持倉資料</td></tr>';
   rows.forEach(r => {
     const a = A.am[r.asset] || {}, n = r.asset;
     const sS = sideStats(n, '賣', o => o.acct === r.acct), sB = sideStats(n, '買', o => o.acct === r.acct);
+    const real = r.mode === '真實交易';
     h += `<tr><td class="l">${esc(r.acct)}</td><td class="l">${logo(n, 16)} <b>${esc(n)}</b></td>
-      <td><input class="in" style="border-color:var(--line);background:${r.qty === null ? 'var(--plan-bg)' : '#fff'};width:120px" data-act="holdQty" data-acct="${esc(r.acct)}" data-asset="${esc(n)}" type="number" step="any" value="${r.qty === null ? '' : r.qty}" placeholder="填入持倉"></td>
-      <td class="l"><span class="tlink" data-act="holdTime" data-acct="${esc(r.acct)}" data-asset="${esc(n)}">${r.time ? fdate(r.time) : '設定'}</span></td>
+      <td class="l"><select data-act="holdMode" data-acct="${esc(r.acct)}" data-asset="${esc(n)}" style="height:28px"><option value="手動" ${real ? '' : 'selected'}>手動</option><option value="真實交易" ${real ? 'selected' : ''}>跟隨真實交易</option></select></td>
+      <td>${real ? '<span class="muted small">依真實交易</span>' : `<input class="in" style="border-color:var(--line);background:${r.qty === null ? 'var(--plan-bg)' : '#fff'};width:120px" data-act="holdQty" data-acct="${esc(r.acct)}" data-asset="${esc(n)}" type="number" step="any" value="${r.qty === null ? '' : r.qty}" placeholder="填入持倉">`}</td>
+      <td class="l">${real ? '' : `<span class="tlink" data-act="holdTime" data-acct="${esc(r.acct)}" data-asset="${esc(n)}">${r.time ? fdate(r.time) : '設定'}</span>`}</td>
       <td>${r.buy ? '+' + fq(r.buy, n) : ''}</td><td>${r.sell ? '−' + fq(r.sell, n) : ''}</td>
       <td><b>${r.est === null ? '—' : fq(r.est, n)}</b></td><td>${fp(a.price, n)}</td><td>${r.est !== null && a.price ? fusd(r.est * a.price, n) : '—'}</td>
       <td>${fq(sS.openQ, n)}</td><td>${fq(sB.openQ, n)}</td><td>${r.est !== null ? fq(r.est - sS.openQ + sB.openQ, n) : '—'}</td>
@@ -1729,7 +1737,7 @@ function holdSection() {
   h += `<div class="card mt"><h2>新增持倉列</h2><div class="row">
     <select id="hA">${s.settings.accounts.map(a => `<option>${esc(a)}</option>`).join('')}</select>
     <select id="hS">${s.assets.map(a => `<option>${esc(a.name)}</option>`).join('')}</select>
-    <input type="number" step="any" id="hQ" placeholder="持倉量" style="width:140px"><button class="btn" data-act="holdAdd">新增</button></div>
+    <input type="number" step="any" id="hQ" placeholder="持倉量（跟隨模式可留空）" style="width:180px"><select id="hM"><option value="手動">手動</option><option value="真實交易">跟隨真實交易</option></select><button class="btn" data-act="holdAdd">新增</button></div>
     ${missing.length ? `<p class="small muted" style="margin-bottom:0">有掛單但還沒有持倉列：${missing.map(k => esc(k.replace('|', ' '))).join('、')}</p>` : ''}</div>`;
   return h;
 }
@@ -1751,10 +1759,11 @@ function vSettings() {
   const cnt = (list, a) => list.filter(x => x.acct === a).length;
   let h = `<h1>設定</h1>${syncCard()}<div class="grid g2${GAS ? '' : ' mt'}">
   <div class="card"><h2>帳戶</h2>
-    <div class="tw"><table><thead><tr><th class="l">名稱</th><th>掛單</th><th>掛單成交</th><th>真實交易</th><th>持倉列</th><th></th></tr></thead><tbody>
+    <div class="tw"><table><thead><tr><th class="l">名稱</th><th>掛單</th><th>掛單成交</th><th>真實交易</th><th>持倉列</th><th class="l">密碼</th><th></th></tr></thead><tbody>
     ${st.accounts.map(a => `<tr><td class="l"><b>${esc(a)}</b>${a === A.acct ? ' <span class="pending" style="background:var(--accent-wash);color:var(--accent-ink)">目前</span>' : ''}</td>
       <td>${cnt(s.orders, a)}</td><td>${cnt(s.trades, a)}</td><td>${cnt(s.real, a)}</td><td>${cnt(s.holdings, a)}</td>
-      <td style="white-space:nowrap">${a === A.acct ? '' : `<button class="btn sm" data-act="acctUse" data-a="${esc(a)}">切換</button> `}<button class="btn sm" data-act="acctRen" data-a="${esc(a)}">改名</button> <button class="btn sm danger" data-act="acctDel" data-a="${esc(a)}" ${st.accounts.length <= 1 ? 'disabled' : ''}>刪除</button></td></tr>`).join('')}
+      <td class="l">${hasPw(a) ? (UNLOCK.set.has(a) ? '🔓 已解鎖' : '🔒') : '<span class="muted">無</span>'}</td>
+      <td style="white-space:nowrap">${a === A.acct ? '' : `<button class="btn sm" data-act="acctUse" data-a="${esc(a)}">切換</button> `}${isLocked(a) ? '' : `<button class="btn sm" data-act="acctPw" data-a="${esc(a)}">${hasPw(a) ? '密碼' : '設密碼'}</button> `}${hasPw(a) && UNLOCK.set.has(a) ? `<button class="btn sm" data-act="acctLock" data-a="${esc(a)}">鎖上</button> ` : ''}<button class="btn sm" data-act="acctRen" data-a="${esc(a)}">改名</button> <button class="btn sm danger" data-act="acctDel" data-a="${esc(a)}" ${st.accounts.length <= 1 ? 'disabled' : ''}>刪除</button></td></tr>`).join('')}
     </tbody></table></div>
     <div class="row mt"><input type="text" id="newAcct" placeholder="新帳戶名稱" style="flex:1;min-width:120px"><button class="btn" data-act="acctAdd">＋ 新增帳戶</button></div></div>
   <div class="card"><h2>策略筆記 <small class="muted" style="font-weight:400">${esc(A.acct)} 專屬</small></h2><textarea id="sNotes" rows="10" placeholder="寫下這個帳戶的策略、目標…">${esc(st.notes[A.acct] || '')}</textarea>
@@ -1784,7 +1793,7 @@ function vSettings() {
   view().innerHTML = h;
 }
 function acctRename(a) {
-  modal(`<h3>帳戶改名</h3><p class="small muted">「${esc(a)}」的掛單、掛單成交、真實交易、持倉與筆記都會一起改成新名稱。</p>
+  modal(`<h3>帳戶改名</h3><p class="small muted">「${esc(a)}」的掛單、掛單成交、真實交易、持倉與筆記都會一起改成新名稱。${hasPw(a) ? '<b>改名後密碼會被清除</b>，請重新設定。' : ''}</p>
     <div class="fg"><label class="full">新名稱<input type="text" id="rnName" value="${esc(a)}" maxlength="20"></label></div>
     <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">改名</button></div>`, act => {
     if (act !== 'ok') return;
@@ -2144,13 +2153,15 @@ function realList() {
 /** 依真實交易算：買／賣合計、淨部位、平均成本（移動平均） */
 function realStats(asset, acct) {
   const ts = A.s.real.filter(t => t.acct === (acct || A.acct) && t.asset === asset).sort((a, b) => (a.time || 0) - (b.time || 0) || (a.id > b.id ? 1 : -1));
-  const o = { n: ts.length, bq: 0, bv: 0, sq: 0, sv: 0, fee: 0, pos: 0, cost: 0, pending: 0 };
+  const o = { n: ts.length, bq: 0, bv: 0, sq: 0, sv: 0, fee: 0, pos: 0, pending: 0 };
   ts.forEach(t => {
     o.fee += t.fee || 0; if (!t.confirmed) o.pending++;
-    if (t.side === '買') { o.bq += t.qty; o.bv += t.amt; o.cost += t.amt; o.pos += t.qty; }
-    else { o.sq += t.qty; o.sv += t.amt; const avg = o.pos > 0 ? o.cost / o.pos : 0; o.pos -= t.qty; o.cost = Math.max(0, o.cost - avg * t.qty); }
+    if (t.side === '買') { o.bq += t.qty; o.bv += t.amt; o.pos += t.qty; }
+    else { o.sq += t.qty; o.sv += t.amt; o.pos -= t.qty; }
   });
-  o.avg = o.pos > 1e-12 ? o.cost / o.pos : null;
+  // 淨投入 = 買入總金額 − 賣出總金額（含手續費）。≤ 0 代表已經全部回本，剩下的部位沒有成本
+  o.net = o.bv + o.fee - o.sv;
+  o.unitCost = o.net > 0 && o.pos > 1e-12 ? o.net / o.pos : null;
   return o;
 }
 function vReal() {
@@ -2173,19 +2184,21 @@ function vReal() {
   if (assets.length) {
     h += '<div class="kpis" style="margin-bottom:12px">';
     assets.forEach(a => {
-      const st = realStats(a.name), hi = holdingInfo(a.name), hq = hi.q;
-      const diff = hq !== null && hq !== undefined ? st.pos - hq : null;
-      h += `<div class="kpi"${assets.length === 1 ? ' style="max-width:560px"' : ''}><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆　手續費 ${fusd(st.fee, a.name)}</div>
+      const st = realStats(a.name), hold = s.holdings.find(x => x.acct === A.acct && x.asset === a.name), hq = hold && hold.est !== null && hold.est !== undefined ? hold.est : null;
+      const follow = hold && hold.mode === '真實交易';
+      const diff = hq !== null ? st.pos - hq : null, tol = Math.pow(10, -qdOf(a.name)) / 2;
+      h += `<div class="kpi"${assets.length === 1 ? ' style="max-width:560px"' : ''}><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆${st.fee ? '　手續費 ' + fusd(st.fee, a.name) : ''}</div>
         <div class="kv" style="margin-top:4px"><span>買入</span><b>${fq(st.bq, a.name)}<small>${fusd(st.bv, a.name)} · 均 ${st.bq ? fp(st.bv / st.bq, a.name) : '—'}</small></b>
         <span>賣出</span><b>${fq(st.sq, a.name)}<small>${fusd(st.sv, a.name)} · 均 ${st.sq ? fp(st.sv / st.sq, a.name) : '—'}</small></b>
-        <span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${st.avg ? '平均成本 ' + fp(st.avg, a.name) : ''}</small></b>
-        <span>淨現金流</span><b class="${st.sv - st.bv - st.fee >= 0 ? 'up' : 'down'}">${fusd(st.sv - st.bv - st.fee, a.name)}</b>
-        <span>設定的持倉</span><b>${hq === null || hq === undefined ? '<span class="muted">未設定</span>' : fq(hq, a.name)}${diff !== null && Math.abs(diff) > Math.pow(10, -qdOf(a.name)) / 2 ? `<small class="${diff > 0 ? 'up' : 'down'}">差 ${diff > 0 ? '+' : ''}${fq(diff, a.name)}</small>` : ''}</b></div>
-        ${diff === null || Math.abs(diff) > Math.pow(10, -qdOf(a.name)) / 2 ? `<div style="margin-top:6px"><span class="tlink small" data-act="realToHold" data-asset="${esc(a.name)}">以淨部位 ${fq(st.pos, a.name)} 更新持倉 →</span></div>` : ''}</div>`;
+        <span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${a.price ? '市值 ' + fusd(st.pos * a.price, a.name) : ''}</small></b>
+        <span>淨投入</span><b class="${st.net <= 0 ? 'up' : ''}">${st.net > 0 ? fusd(st.net, a.name) : '已全部回本'}<small>${st.net > 0 ? (st.unitCost ? '剩餘部位每單位成本 ' + fp(st.unitCost, a.name) : '') : '賣出已超過買入 ' + fusd(-st.net, a.name) + '，剩餘部位成本 0'}</small></b>
+        <span>設定的持倉</span><b>${follow ? `<span class="muted small">跟隨真實交易</span> ${fq(hq, a.name)}` : hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}${!follow && diff !== null && Math.abs(diff) > tol ? `<small class="${diff > 0 ? 'up' : 'down'}">差 ${diff > 0 ? '+' : ''}${fq(diff, a.name)}</small>` : ''}</b></div>
+        ${follow ? '' : `<div style="margin-top:6px" class="small"><span class="tlink" data-act="realFollow" data-asset="${esc(a.name)}">讓持倉跟隨真實交易紀錄</span>${diff === null || Math.abs(diff) > tol ? `　·　<span class="tlink" data-act="realToHold" data-asset="${esc(a.name)}">只把現在的淨部位 ${fq(st.pos, a.name)} 填進手動持倉</span>` : ''}</div>`}</div>`;
     });
     h += '</div>';
   }
-  if (!list.length) { view().innerHTML = h + `<div class="card empty">${all.length ? '沒有符合篩選的紀錄' : '還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。'}</div>`; return; }
+  if (f.asset !== '全部' && all.some(t => t.asset === f.asset)) h += `<div class="card" style="margin-bottom:12px"><h2>${logo(f.asset, 18)} ${esc(f.asset)} 歷史價格與買賣 <small class="muted" style="font-weight:400">${f.side === '全部' ? '' : '只畫' + f.side + '入／出'}${f.year ? ' · ' + f.year + ' 年' : ''}</small></h2><div id="rChart" style="position:relative"></div><div id="rChartMeta" class="small muted" style="margin-top:6px"></div><div class="legend" style="margin-top:4px"><span><i style="background:var(--placed)"></i>買入</span><span><i style="background:var(--plan)"></i>賣出</span><span class="muted">圓點大小 = 數量</span></div></div>`;
+  if (!list.length) { view().innerHTML = h + `<div class="card empty">${all.length ? '沒有符合篩選的紀錄' : '還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。'}</div>`; realChart(); return; }
   const selAll = list.every(t => A.rsel.has(t.id));
   h += `<div class="tw" style="max-height:calc(100vh - 300px)"><table><thead><tr><th class="c"><input type="checkbox" data-act="rselAll" ${selAll ? 'checked' : ''}></th><th class="l">時間</th><th class="l">資產</th><th class="c">方向</th><th>價格</th><th>數量</th><th>金額</th><th>手續費</th><th class="l">交易所</th><th class="l">來源</th><th class="l">備註</th><th></th></tr></thead><tbody>`;
   list.forEach(t => {
@@ -2199,6 +2212,7 @@ function vReal() {
       <td><button class="ibtn" data-act="editReal" data-id="${esc(t.id)}" title="編輯">✎</button></td></tr>`;
   });
   view().innerHTML = h + '</tbody></table></div>';
+  realChart();
 }
 function renderRealBatch() {
   let el = document.querySelector('.batch');
@@ -2287,6 +2301,158 @@ function openRealImport() {
     $('riOut').innerHTML = h;
   };
   $('riT').addEventListener('input', () => { clearTimeout(upd._t); upd._t = setTimeout(upd, 200); });
+}
+
+// ═════════════ 真實交易圖表：歷史價格 ＋ 買賣點 ═════════════
+const PH = { cache: {}, loading: {} };
+function phKey(asset) { return 'ph.' + asset; }
+function phGet(asset) {
+  if (PH.cache[asset]) return PH.cache[asset];
+  const c = LS.get(phKey(asset), null);
+  if (c && c.points) { PH.cache[asset] = c; return c; }
+  return null;
+}
+function phLoad(asset, force) {
+  if (PH.loading[asset]) return;
+  PH.loading[asset] = true;
+  const done = r => { PH.loading[asset] = false; if (r) { PH.cache[asset] = r; LS.set(phKey(asset), r); } if (A.view === 'real' && A.rf.asset === asset) realChart(); };
+  srv('api_priceHistory', [asset, !!force]).then(done).catch(e => { PH.loading[asset] = false; PH.err = e.message; if (A.view === 'real' && A.rf.asset === asset) realChart(); });
+}
+function realChart() {
+  const host = $('rChart'); if (!host) return;
+  const asset = A.rf.asset, a = A.am[asset]; if (!a) { host.innerHTML = ''; return; }
+  const ph = phGet(asset);
+  const stale = !ph || !ph.updated || (Date.now() - new Date(ph.updated).getTime()) > 7 * 864e5;
+  if (stale && !PH.loading[asset] && (GAS || (SY.cfg && navigator.onLine !== false))) phLoad(asset);
+  const ts = A.s.real.filter(t => inAcct(t) && t.asset === asset && t.time && (A.rf.side === '全部' || t.side === A.rf.side) && (!A.rf.year || String(new Date(t.time).getFullYear()) === A.rf.year) && (!A.rf.pending || !t.confirmed)).sort((x, y) => x.time - y.time);
+  const native = a.ccy, dccy = a.dccy;
+  // 價格線（資產原幣）→ 顯示幣別（用最新匯率；只是為了和交易點同一個尺度）
+  const k = native === dccy ? 1 : (fxConv(1, native, dccy) || 1);
+  let line = ph && ph.points ? ph.points.map(p => [new Date(p[0]).getTime(), p[1] * k]).filter(p => isFinite(p[0]) && p[1] > 0) : [];
+  const cur = a.price;
+  if (cur) line.push([Date.now(), cur]);
+  const pts = ts.map(t => ({ x: t.time, y: t.price, t: t })).filter(p => p.y > 0);
+  if (!line.length && !pts.length) { host.innerHTML = `<div class="empty" style="padding:18px">${PH.loading[asset] ? '正在抓歷史價格…' : '沒有可以畫的資料'}</div>`; return; }
+  const xs = line.map(p => p[0]).concat(pts.map(p => p.x)), ys = line.map(p => p[1]).concat(pts.map(p => p.y));
+  let x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+  if (x1 - x0 < 30 * 864e5) { x0 -= 15 * 864e5; x1 += 15 * 864e5; }
+  const logY = A.rf.log !== false && Math.max.apply(null, ys) / Math.min.apply(null, ys) > 8;
+  const yv = v => logY ? Math.log(v) : v;
+  let yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+  if (logY) { yMin = yv(yMin) - 0.15; yMax = yv(yMax) + 0.15; } else { const pad = (yMax - yMin || yMax) * 0.08; yMin = Math.max(0, yMin - pad); yMax += pad; }
+  const W = Math.max(320, host.clientWidth || 800), small = W < 600, H = small ? 240 : 320, padL = small ? 50 : 66, padR = 14, padT = 18, padB = 26;
+  const X = t => padL + (t - x0) / (x1 - x0) * (W - padL - padR), Y = v => padT + (yMax - yv(v)) / (yMax - yMin) * (H - padT - padB);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" height="${H}" font-size="11" font-family="inherit" style="width:100%;display:block">`;
+  // y grid
+  const ticks = [];
+  if (logY) { const lo = Math.exp(yMin), hi = Math.exp(yMax); let p = Math.pow(10, Math.floor(Math.log10(lo))); while (p <= hi) { [1, 2, 5].forEach(m => { if (p * m >= lo && p * m <= hi) ticks.push(p * m); }); p *= 10; } }
+  else { const step = niceStep((yMax - yMin) / 5); for (let v = Math.ceil(yMin / step) * step; v <= yMax; v += step) ticks.push(v); }
+  const sym = SYM[dccy] || '';
+  ticks.forEach(v => { const y = Y(v); svg += `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="#e8e7e1"/><text x="${padL - 6}" y="${y + 4}" text-anchor="end" fill="#898781">${sym}${compact(v)}</text>`; });
+  // x ticks: years
+  const d0 = new Date(x0), d1 = new Date(x1); const span = (x1 - x0) / 864e5;
+  if (span > 500) { for (let y = d0.getFullYear() + 1; y <= d1.getFullYear(); y++) { const t = new Date(y, 0, 1).getTime(); const x = X(t); svg += `<line x1="${x}" x2="${x}" y1="${padT}" y2="${H - padB}" stroke="#f0efe9"/><text x="${x}" y="${H - 8}" text-anchor="middle" fill="#898781">${y}</text>`; } }
+  else { const n = 6; for (let i = 0; i <= n; i++) { const t = x0 + (x1 - x0) * i / n, x = X(t), d = new Date(t); svg += `<text x="${x}" y="${H - 8}" text-anchor="middle" fill="#898781">${d.getFullYear()}-${pad(d.getMonth() + 1)}${span < 120 ? '-' + pad(d.getDate()) : ''}</text>`; } }
+  // price line
+  if (line.length > 1) svg += `<path d="${line.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(' ')}" fill="none" stroke="#2a78d6" stroke-width="1.6"/>`;
+  // trade dots
+  const qmax = Math.max.apply(null, pts.map(p => p.t.qty).concat([1e-12]));
+  pts.forEach((p, i) => {
+    const r = 3 + 7 * Math.sqrt(p.t.qty / qmax);
+    svg += `<circle cx="${X(p.x).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${r.toFixed(1)}" fill="${p.t.side === '買' ? COL.placed : COL.plan}" fill-opacity=".72" stroke="#fff" stroke-width="1" data-i="${i}" style="cursor:pointer"/>`;
+  });
+  svg += '</svg>';
+  host.innerHTML = svg + `<div class="tip" id="rTip" style="display:none"></div>`;
+  const tip = $('rTip');
+  host.querySelectorAll('circle').forEach(c => {
+    const show = () => {
+      const p = pts[+c.dataset.i], t = p.t;
+      tip.innerHTML = `<div class="h">${esc(fdate(t.time).slice(0, 10))} <span style="color:${t.side === '買' ? COL.placed : '#9a5b00'}">${t.side}</span></div>
+        <div class="r"><span>價格</span><b>${fp(t.price, asset)}</b></div><div class="r"><span>數量</span><b>${fq(t.qty, asset)} ${esc(unitOf(asset))}</b></div><div class="r"><span>金額</span><b>${fusd(t.amt, asset)}</b></div>${t.note ? `<div class="r" style="max-width:260px"><span>${esc(t.note.split('｜')[0])}</span></div>` : ''}`;
+      tip.style.display = 'block';
+      const bb = host.getBoundingClientRect(), cb = c.getBoundingClientRect();
+      let left = cb.left - bb.left + 12, top = cb.top - bb.top - 10;
+      if (left + 280 > bb.width) left = Math.max(0, cb.left - bb.left - 290);
+      tip.style.left = left + 'px'; tip.style.top = Math.max(0, top) + 'px';
+    };
+    c.addEventListener('mouseenter', show); c.addEventListener('click', e => { e.stopPropagation(); show(); });
+    c.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  });
+  const meta = $('rChartMeta');
+  if (meta) meta.innerHTML = `${ph && ph.source ? `價格線：${esc(ph.source)}，${esc(ph.updated || '')} 更新` : (PH.loading[asset] ? '正在抓歷史價格…' : `沒有歷史價格${ph && ph.note ? '（' + esc(ph.note) + '）' : ''}，只畫交易點`)}　·　以 ${esc(dccy)} 計${native !== dccy ? '（價格線用最新匯率換算）' : ''}　·　${logY ? '對數刻度' : '線性刻度'} <span class="tlink" data-act="rfLog">切換</span>　·　<span class="tlink" data-act="phRefresh">重新抓取</span>`;
+}
+function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x || 1))); const m = x / p; return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p; }
+
+// ═════════════ 帳戶密碼（檢視與操作前先解鎖） ═════════════
+// 純 JS SHA-256（沒有 crypto.subtle 的環境也能用）
+function sha256hex(str) {
+  const K = [0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2];
+  const bytes = new TextEncoder().encode(str);
+  const l = bytes.length, bitLen = l * 8, pad = ((l + 9 + 63) >> 6) << 6;
+  const m = new Uint8Array(pad); m.set(bytes); m[l] = 0x80;
+  const dv = new DataView(m.buffer); dv.setUint32(pad - 4, bitLen >>> 0); dv.setUint32(pad - 8, Math.floor(bitLen / 4294967296));
+  let H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const w = new Uint32Array(64), rotr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let i = 0; i < pad; i += 64) {
+    for (let j = 0; j < 16; j++) w[j] = dv.getUint32(i + j * 4);
+    for (let j = 16; j < 64; j++) { const s0 = rotr(w[j - 15], 7) ^ rotr(w[j - 15], 18) ^ (w[j - 15] >>> 3), s1 = rotr(w[j - 2], 17) ^ rotr(w[j - 2], 19) ^ (w[j - 2] >>> 10); w[j] = (w[j - 16] + s0 + w[j - 7] + s1) >>> 0; }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let j = 0; j < 64; j++) {
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25), ch = (e & f) ^ (~e & g), t1 = (h + S1 + ch + K[j] + w[j]) >>> 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22), mj = (a & b) ^ (a & c) ^ (b & c), t2 = (S0 + mj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H = H.map((x, i) => (x + [a, b, c, d, e, f, g, h][i]) >>> 0);
+  }
+  return H.map(x => ('00000000' + x.toString(16)).slice(-8)).join('');
+}
+const pwHashOf = (acct, pw) => sha256hex(acct + ':' + pw);
+const UNLOCK = { set: new Set((() => { try { return JSON.parse(sessionStorage.getItem('alp.unlocked') || '[]'); } catch (e) { return []; } })()) };
+function unlockSave() { try { sessionStorage.setItem('alp.unlocked', JSON.stringify([...UNLOCK.set])); } catch (e) { /* 無 */ } }
+function hasPw(acct) { return !!(A.raw && A.raw.settings && A.raw.settings.pw && A.raw.settings.pw[acct]); }
+function isLocked(acct) { return hasPw(acct) && !UNLOCK.set.has(acct); }
+function tryUnlock(acct, pw) {
+  if (!hasPw(acct)) return true;
+  if (pwHashOf(acct, pw) !== A.raw.settings.pw[acct]) return false;
+  UNLOCK.set.add(acct); unlockSave(); return true;
+}
+function renderLock() {
+  window.__booted = true;
+  const acct = A.acct;
+  view().innerHTML = `<div class="card setup" style="max-width:420px"><h2 style="justify-content:center">🔒 ${esc(acct)}</h2>
+    <p class="small muted">這個帳戶設有密碼，輸入後才能檢視與操作。右上角可以切換到其他帳戶。</p>
+    <div class="fg"><label class="full">密碼<input type="password" id="lkPw" autocomplete="current-password"></label></div>
+    <div id="lkMsg" class="small" style="color:var(--bad);min-height:18px"></div>
+    <div class="foot" style="justify-content:center"><button class="btn primary" data-act="lkGo">解鎖</button></div></div>`;
+  const inp = $('lkPw'); inp.focus();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') doUnlock(); });
+}
+function doUnlock() {
+  const pw = $('lkPw').value;
+  if (tryUnlock(A.acct, pw)) { toast('已解鎖「' + A.acct + '」'); render(); }
+  else { $('lkMsg').textContent = '密碼不正確'; $('lkPw').value = ''; $('lkPw').focus(); }
+}
+function lockNow(acct) { UNLOCK.set.delete(acct); unlockSave(); render(); }
+function openPassword(acct) {
+  const has = hasPw(acct);
+  modal(`<h3>${has ? '更改／移除' : '設定'}「${esc(acct)}」的密碼</h3>
+    <p class="small muted">設了密碼之後，切換到這個帳戶時要先輸入密碼才能看到資料與操作。這是一道隱私鎖，用來區隔家人各自的帳戶；有技術能力的人仍可能繞過，請不要把它當成銀行等級的保護。</p>
+    <div class="fg">${has ? '<label class="full">目前的密碼<input type="password" id="pwOld" autocomplete="current-password"></label>' : ''}
+      <label>新密碼（至少 4 個字）<input type="password" id="pwNew" autocomplete="new-password"></label>
+      <label>再輸入一次<input type="password" id="pwNew2" autocomplete="new-password"></label></div>
+    <div class="foot">${has ? '<button class="btn danger" data-m="rm" style="margin-right:auto">移除密碼</button>' : ''}<button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
+    if (act !== 'ok' && act !== 'rm') return;
+    const old = has ? $('pwOld').value : '';
+    if (has && !old) return toast('請輸入目前的密碼', true);
+    let nw = '';
+    if (act === 'ok') {
+      nw = $('pwNew').value;
+      if (nw.length < 4) return toast('密碼至少 4 個字', true);
+      if (nw !== $('pwNew2').value) return toast('兩次輸入的密碼不一樣', true);
+    }
+    closeModal();
+    call('api_setPassword', [acct, old, nw], () => { if (nw) { UNLOCK.set.add(acct); unlockSave(); } else UNLOCK.set.delete(acct); toast(nw ? '密碼已設定' : '密碼已移除'); render(); });
+  });
 }
 
 // ═════════════ 彈出視窗 ═════════════
@@ -2381,6 +2547,12 @@ document.addEventListener('click', e => {
     case 'addReal': return openReal(null);
     case 'realImport': return openRealImport();
     case 'realConfirm': return call('api_confirmReal', [[d.id]], () => { toast('已確認'); render(); });
+    case 'realFollow': return call('api_saveHolding', [{ acct: A.acct, asset: d.asset, mode: '真實交易' }], () => { toast(`${d.asset} 的持倉改為跟隨真實交易紀錄`); render(); });
+    case 'rfLog': A.rf.log = A.rf.log === false ? true : false; return realChart();
+    case 'phRefresh': PH.cache[A.rf.asset] = null; LS.del(phKey(A.rf.asset)); phLoad(A.rf.asset, true); return realChart();
+    case 'lkGo': return doUnlock();
+    case 'acctLock': return lockNow(d.a);
+    case 'acctPw': return openPassword(d.a);
     case 'realToHold': { const st = realStats(d.asset); return confirmBox(`更新 ${d.asset} 的持倉`, `把「設定 → 持倉」裡 ${esc(A.acct)} 的 ${esc(d.asset)} 基準持倉設為 <b>${fq(st.pos, d.asset)}</b>，基準時間＝現在。`, '更新', () => call('api_saveHolding', [{ acct: A.acct, asset: d.asset, qty: roundTo(st.pos, qdOf(d.asset)), time: Date.now() }], () => { toast('持倉已更新'); render(); })); }
     case 'rbConfirm': return call('api_confirmReal', [[...A.rsel]], () => { toast('已確認'); A.rsel.clear(); render(); });
     case 'rbDel': return confirmBox(`刪除 ${A.rsel.size} 筆真實交易`, '刪除後無法復原。', '刪除', () => call('api_deleteReal', [[...A.rsel]], () => { toast('已刪除'); A.rsel.clear(); render(); }));
@@ -2391,14 +2563,14 @@ document.addEventListener('click', e => {
     case 'holdDel': return confirmBox(`移除 ${d.acct} ${d.asset} 的持倉列`, '只會移除持倉設定，不會影響掛單與成交紀錄。', '移除', () => call('api_deleteHolding', [d.acct, d.asset], () => render()));
     case 'holdAdd': {
       const q = num($('hQ').value);
-      return call('api_saveHolding', [{ acct: $('hA').value, asset: $('hS').value, qty: q, time: q === null ? null : Date.now() }], () => { toast('已新增'); render(); });
+      return call('api_saveHolding', [{ acct: $('hA').value, asset: $('hS').value, qty: q, time: q === null ? null : Date.now(), mode: $('hM').value }], () => { toast('已新增'); render(); });
     }
     case 'saveGen': return call('api_saveSettings', [{ alertPct: (num($('sAl').value) || 0) / 100, feeRate: (num($('sFee').value) || 0) / 100, defExch: $('sEx').value }], () => { toast('已儲存'); render(); });
     case 'saveNotes': return call('api_saveNotes', [A.acct, $('sNotes').value], () => toast(`「${A.acct}」的筆記已儲存`));
     case 'acctAdd': { const n = $('newAcct').value.trim(); if (!n) return toast('請輸入帳戶名稱', true); return call('api_addAccount', [n], () => { toast(`已新增帳戶「${n}」`); render(); }); }
     case 'acctUse': A.acct = d.a; setState(A.raw); if (A.sim) { A.sim.acct = A.acct; simLoad(); } return render();
-    case 'acctRen': return acctRename(d.a);
-    case 'acctDel': return acctDelete(d.a);
+    case 'acctRen': if (isLocked(d.a)) return toast('請先切換到該帳戶並輸入密碼', true); return acctRename(d.a);
+    case 'acctDel': if (isLocked(d.a)) return toast('請先切換到該帳戶並輸入密碼', true); return acctDelete(d.a);
     case 'refresh': return call('api_refreshPrices', [], () => { toast('已更新現價'); render(); });
     case 'aiOpen': return openAi(A.acct, A.asset);
     case 'ordersPdf': return openOrdersPdf();
@@ -2431,6 +2603,7 @@ document.addEventListener('change', e => {
     }
     case 'note': return call('api_updateOrder', [d.id, { note: el.value }], () => toast('備註已儲存'), { silent: false });
     case 'holdQty': return call('api_saveHolding', [{ acct: d.acct, asset: d.asset, qty: el.value, time: Date.now() }], () => { toast('持倉已儲存，基準時間 = 現在'); render(); });
+    case 'holdMode': return call('api_saveHolding', [{ acct: d.acct, asset: d.asset, mode: el.value }], () => { toast(el.value === '真實交易' ? '持倉改為跟隨真實交易紀錄' : '持倉改為手動'); render(); });
   }
 });
 document.addEventListener('input', e => {
