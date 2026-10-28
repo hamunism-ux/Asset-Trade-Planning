@@ -150,6 +150,9 @@
   tr.r-placed td { background: #f1fbf6; }
   tr.r-paused td { color: #a9a7a0; font-style: italic; }
   tr.r-pend td { background: var(--warn-bg) !important; }
+  .kind { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 5px; font-size: 10.5px; line-height: 16px; vertical-align: 1px; background: var(--plane); color: var(--muted); border: 1px solid var(--line); }
+  .kind.k-swap { color: #4b3fa0; background: #eeebfb; border-color: #d6d0f3; }
+  .kind.k-xfer { color: #6b6e74; }
   tr.sel td { background: var(--accent-wash) !important; }
   tr.grp td { background: #f7f6f2 !important; font-weight: 600; text-align: left; border-bottom: 1px solid var(--line); padding: 8px 9px; position: sticky; top: 33px; z-index: 1; }
   tr.grp .gs { font-weight: 400; color: var(--ink2); font-size: 12px; margin-left: 10px; }
@@ -467,7 +470,7 @@ const LOCAL = {
         fee: fee, exch: exch, oid: o.id, note: String(common.note || '').trim() });
       o.status = ST.FILLED; o.logId = it.logId; k++;
       if (wasPlaced && it.realId) s.real.push({ id: it.realId, time: time, d: localDay(time), acct: o.acct, asset: o.asset, side: o.side, price: price, qty: qty, fee: fee, exch: exch,
-        source: '掛單成交', logId: it.logId, confirmed: false, note: '由掛單 ' + o.id + ' 成交自動寫入，請確認價格與數量' });
+        source: '掛單成交', logId: it.logId, confirmed: false, note: '由掛單 ' + o.id + ' 成交自動寫入，請確認價格與數量', ccy: '', kind: '法幣' });
     });
     if (!k) throw new Error('沒有可以登記的單（可能都已經是已成交）');
   },
@@ -529,7 +532,7 @@ const LOCAL = {
     else if (row.source === '掛單成交') row.confirmed = true;
     const time = nv(t.time);
     Object.assign(row, { time: time || null, d: time ? localDay(time) : '', acct: t.acct, asset: t.asset, side: t.side, price: price, qty: qty,
-      fee: nv(t.fee), exch: String(t.exch || '').trim(), note: String(t.note || '').trim(), ccy: t.ccy || '' });
+      fee: nv(t.fee), exch: String(t.exch || '').trim(), note: String(t.note || '').trim(), ccy: t.ccy || '', kind: REAL_KINDS.indexOf(t.kind) >= 0 ? t.kind : guessKind(t.note) });
   },
   api_deleteReal(s, ids) { const set = new Set(ids); s.real = s.real.filter(r => !set.has(r.id)); },
   api_confirmReal(s, ids) { const set = new Set(ids); s.real.forEach(r => { if (set.has(r.id)) r.confirmed = true; }); },
@@ -541,7 +544,7 @@ const LOCAL = {
       const asset = am[String(it.asset || '').toUpperCase()], price = nv(it.price), qty = nv(it.qty);
       if (!asset || (it.side !== '買' && it.side !== '賣') || !(price >= 0) || !(qty > 0) || s.real.some(r => r.id === it.id)) return;
       const time = nv(it.time);
-      s.real.push({ id: it.id, time: time || null, d: time ? localDay(time) : '', acct: acct, asset: asset, side: it.side, price: price, qty: qty, fee: nv(it.fee), exch: String(it.exch || '').trim(), source: '匯入', logId: '', confirmed: true, note: String(it.note || '').trim(), ccy: it.ccy || ccy || '' });
+      s.real.push({ id: it.id, time: time || null, d: time ? localDay(time) : '', acct: acct, asset: asset, side: it.side, price: price, qty: qty, fee: nv(it.fee), exch: String(it.exch || '').trim(), source: '匯入', logId: '', confirmed: true, note: String(it.note || '').trim(), ccy: it.ccy || ccy || '', kind: REAL_KINDS.indexOf(it.kind) >= 0 ? it.kind : guessKind(it.note) });
       n++;
     });
     if (!n) throw new Error('沒有可以匯入的資料（請檢查資產名稱、方向、價格與數量）');
@@ -2144,6 +2147,15 @@ function printHtml(html) {
 
 // ═════════════ 真實交易紀錄 ═════════════
 const SRC_LBL = { '手動': '手動', '匯入': '匯入', '掛單成交': '掛單成交' };
+const REAL_KINDS = ['法幣', '幣幣', '轉帳'];
+const KIND_CLS = { '法幣': '', '幣幣': 'k-swap', '轉帳': 'k-xfer' };
+function guessKind(note) {
+  const n = String(note || '');
+  if (/轉出|轉入|give to|receive from|received from|transfer|送出|收到/i.test(n)) return '轉帳';
+  if (/換成|換入|幣幣|exchange|swap|convert|hard fork|分叉|投入 |buy from (eth|btc|ada|usdt|usdc)/i.test(n)) return '幣幣';
+  return '法幣';
+}
+const kindOf = t => REAL_KINDS.indexOf(t.kind) >= 0 ? t.kind : guessKind(t.note);
 function realList() {
   const s = A.s, f = A.rf;
   return s.real.filter(t => inAcct(t) && (f.asset === '全部' || t.asset === f.asset) && (f.side === '全部' || t.side === f.side) && (!f.pending || !t.confirmed) &&
@@ -2153,14 +2165,17 @@ function realList() {
 /** 依真實交易算：買／賣合計、淨部位、平均成本（移動平均） */
 function realStats(asset, acct) {
   const ts = A.s.real.filter(t => t.acct === (acct || A.acct) && t.asset === asset).sort((a, b) => (a.time || 0) - (b.time || 0) || (a.id > b.id ? 1 : -1));
-  const o = { n: ts.length, bq: 0, bv: 0, sq: 0, sv: 0, fee: 0, pos: 0, pending: 0 };
+  const o = { n: ts.length, bq: 0, bv: 0, sq: 0, sv: 0, fee: 0, pos: 0, pending: 0, fb: 0, fs: 0, ffee: 0, swapIn: 0, swapOut: 0, xIn: 0, xOut: 0 };
   ts.forEach(t => {
+    const k = kindOf(t);
     o.fee += t.fee || 0; if (!t.confirmed) o.pending++;
-    if (t.side === '買') { o.bq += t.qty; o.bv += t.amt; o.pos += t.qty; }
-    else { o.sq += t.qty; o.sv += t.amt; o.pos -= t.qty; }
+    if (t.side === '買') { o.bq += t.qty; o.bv += t.amt; o.pos += t.qty; } else { o.sq += t.qty; o.sv += t.amt; o.pos -= t.qty; }
+    if (k === '法幣') { if (t.side === '買') o.fb += t.amt; else o.fs += t.amt; o.ffee += t.fee || 0; }
+    else if (k === '幣幣') { if (t.side === '買') o.swapIn += t.qty; else o.swapOut += t.qty; }
+    else { if (t.side === '買') o.xIn += t.qty; else o.xOut += t.qty; }
   });
-  // 淨投入 = 買入總金額 − 賣出總金額（含手續費）。≤ 0 代表已經全部回本，剩下的部位沒有成本
-  o.net = o.bv + o.fee - o.sv;
+  // 淨投入 = 法幣買入總額（含手續費）− 法幣賣出總額；幣幣交換與轉帳不算。≤ 0 代表已經全部回本，剩下的部位沒有成本
+  o.net = o.fb + o.ffee - o.fs;
   o.unitCost = o.net > 0 && o.pos > 1e-12 ? o.net / o.pos : null;
   return o;
 }
@@ -2191,7 +2206,8 @@ function vReal() {
         <div class="kv" style="margin-top:4px"><span>買入</span><b>${fq(st.bq, a.name)}<small>${fusd(st.bv, a.name)} · 均 ${st.bq ? fp(st.bv / st.bq, a.name) : '—'}</small></b>
         <span>賣出</span><b>${fq(st.sq, a.name)}<small>${fusd(st.sv, a.name)} · 均 ${st.sq ? fp(st.sv / st.sq, a.name) : '—'}</small></b>
         <span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${a.price ? '市值 ' + fusd(st.pos * a.price, a.name) : ''}</small></b>
-        <span>淨投入</span><b class="${st.net <= 0 ? 'up' : ''}">${st.net > 0 ? fusd(st.net, a.name) : '已全部回本'}<small>${st.net > 0 ? (st.unitCost ? '剩餘部位每單位成本 ' + fp(st.unitCost, a.name) : '') : '賣出已超過買入 ' + fusd(-st.net, a.name) + '，剩餘部位成本 0'}</small></b>
+        <span>法幣淨投入<small class="muted" style="display:block">用錢買 − 賣成錢；幣幣交換、轉帳不算</small></span><b class="${st.net <= 0 ? 'up' : ''}">${st.net > 0 ? fusd(st.net, a.name) : '已全部回本'}<small>${st.net > 0 ? (st.unitCost ? '剩餘部位每單位成本 ' + fp(st.unitCost, a.name) : '') : '多收回 ' + fusd(-st.net, a.name) + '，剩餘部位成本 0'}</small></b>
+        ${st.swapIn || st.swapOut || st.xIn || st.xOut ? `<span>幣幣／轉帳</span><b style="font-weight:500;font-size:12px">${st.swapIn || st.swapOut ? `換入 ${fq(st.swapIn, a.name)}、換出 ${fq(st.swapOut, a.name)}` : ''}${(st.swapIn || st.swapOut) && (st.xIn || st.xOut) ? '；' : ''}${st.xIn || st.xOut ? `轉入 ${fq(st.xIn, a.name)}、轉出 ${fq(st.xOut, a.name)}` : ''}</b>` : ''}
         <span>設定的持倉</span><b>${follow ? `<span class="muted small">跟隨真實交易</span> ${fq(hq, a.name)}` : hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}${!follow && diff !== null && Math.abs(diff) > tol ? `<small class="${diff > 0 ? 'up' : 'down'}">差 ${diff > 0 ? '+' : ''}${fq(diff, a.name)}</small>` : ''}</b></div>
         ${follow ? '' : `<div style="margin-top:6px" class="small"><span class="tlink" data-act="realFollow" data-asset="${esc(a.name)}">讓持倉跟隨真實交易紀錄</span>${diff === null || Math.abs(diff) > tol ? `　·　<span class="tlink" data-act="realToHold" data-asset="${esc(a.name)}">只把現在的淨部位 ${fq(st.pos, a.name)} 填進手動持倉</span>` : ''}</div>`}</div>`;
     });
@@ -2205,7 +2221,7 @@ function vReal() {
     const pend = !t.confirmed;
     h += `<tr class="${pend ? 'r-pend' : ''} ${A.rsel.has(t.id) ? 'sel' : ''}"><td class="c"><input type="checkbox" data-act="rsel" data-id="${esc(t.id)}" ${A.rsel.has(t.id) ? 'checked' : ''}></td>
       <td class="l">${t.time ? fdate(t.time) : '<span class="muted">未填</span>'}</td><td class="l">${logo(t.asset, 16)} ${esc(t.asset)}</td>
-      <td class="c"><span class="st ${t.side === '買' ? 's-placed' : 's-plan'}" style="cursor:default">${esc(t.side)}</span></td>
+      <td class="c" style="white-space:nowrap"><span class="st ${t.side === '買' ? 's-placed' : 's-plan'}" style="cursor:default">${esc(t.side)}</span>${kindOf(t) !== '法幣' ? `<span class="kind ${KIND_CLS[kindOf(t)]}" title="${kindOf(t) === '幣幣' ? '用別的幣換的，不算法幣投入' : '轉帳，沒有買賣'}">${esc(kindOf(t))}</span>` : ''}</td>
       <td>${t.noFx ? `<span class="muted" title="抓不到匯率，以原幣顯示">${esc(t.ccy)} </span>` : ''}${fp(t.price, t.asset)}${t.ccy !== ccyFor(t.asset) && !t.noFx ? `<br><small class="muted" title="原始紀錄${t.approx ? '；2024 年 3 月以前用年平均匯率換算' : ''}">${esc(SYM[t.ccy] || t.ccy)}${nf(t.price0, t.price0 >= 100 ? 0 : 4)}${t.approx ? '≈' : ''}</small>` : ''}</td><td><b>${fq(t.qty, t.asset)}</b></td><td>${fusd(t.amt, t.asset)}</td><td>${t.fee === null ? '' : fusd(t.fee, t.asset)}</td>
       <td class="l">${esc(t.exch)}</td><td class="l" style="white-space:nowrap">${t.source === '掛單成交' ? (pend ? `<span class="pending" style="background:var(--warn-bg);color:var(--warn)">⚠ 待確認</span> <button class="btn sm" data-act="realConfirm" data-id="${esc(t.id)}">確認</button>` : '掛單成交 ✓') : esc(SRC_LBL[t.source] || t.source)}${t.logId ? ` <span class="muted small">${esc(t.logId)}</span>` : ''}</td>
       <td class="l muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.note)}">${esc(t.note)}</td>
@@ -2234,6 +2250,7 @@ function openReal(id) {
       <label>價格<input type="number" step="any" id="rP" value="${t ? t.price : ''}" placeholder="轉入／轉出可填 0"></label>
       <label>數量（<span class="rUnit"></span>）<input type="number" step="any" id="rQ" value="${t ? t.qty : ''}"></label>
       <label>價格與手續費的幣別<select id="rC">${['USD', 'TWD', 'CNY', 'HKD'].map(c => `<option value="${c}">${c}</option>`).join('')}</select></label>
+      <label>類型<select id="rK"><option value="法幣">法幣（用錢買賣）</option><option value="幣幣">幣幣（用別的幣換，不算投入）</option><option value="轉帳">轉帳（送出／收到）</option></select></label>
       <label>手續費<input type="number" step="any" id="rF" value="${t && t.fee !== null ? t.fee : ''}"></label>
       <label>交易所／券商<input type="text" id="rE" value="${esc(t ? t.exch : s.settings.defExch)}"></label>
       <label class="full">備註<input type="text" id="rN" value="${esc(t ? t.note : '')}"></label></div>
@@ -2241,13 +2258,15 @@ function openReal(id) {
     if (act === 'del') { closeModal(); return confirmBox('刪除交易 ' + t.id, '刪除後無法復原。', '刪除', () => call('api_deleteReal', [[t.id]], () => { A.rsel.delete(t.id); toast('已刪除'); render(); })); }
     if (act !== 'ok') return;
     const rec = { id: t ? t.id : '', acct: $('rA').value, asset: $('rS').value, side: $('rD').value, time: fromLocalInput($('rT').value),
-      price: $('rP').value, qty: $('rQ').value, fee: $('rF').value, exch: $('rE').value, note: $('rN').value, ccy: $('rC').value };
+      price: $('rP').value, qty: $('rQ').value, fee: $('rF').value, exch: $('rE').value, note: $('rN').value, ccy: $('rC').value, kind: $('rK').value };
     if (!(num(rec.price) >= 0) || !(num(rec.qty) > 0)) return toast('請填價格（可為 0）與數量', true);
     closeModal();
     call('api_saveReal', [rec], () => { toast('已儲存'); render(); });
   });
   if (t && t.side === '賣') $('rD').value = '賣';
   $('rC').value = t ? (t.ccy || nativeCcy(t.asset)) : nativeCcy(asset);
+  $('rK').value = t ? kindOf(t) : '法幣';
+  $('rN').addEventListener('input', () => { if (!t) $('rK').value = guessKind($('rN').value); });
   const upC = () => { document.querySelectorAll('#dlg .rUnit').forEach(e => e.textContent = unitOf($('rS').value)); if (!t) $('rC').value = nativeCcy($('rS').value); };
   $('rS').onchange = upC; upC();
 }
@@ -2269,7 +2288,7 @@ function parseRealText(txt) {
     else if (!asset) bad.push([i + 1, raw, '資產「' + c[1] + '」不在設定裡']);
     else if (!side) bad.push([i + 1, raw, '方向要是 買／賣']);
     else if (!(price >= 0) || !(qty > 0)) bad.push([i + 1, raw, '價格要 ≥ 0、數量要 > 0']);
-    else out.push({ time: ms, asset: asset, side: side, price: price, qty: qty, fee: fee, exch: c[6] || '', note: c.slice(7).join(' ') });
+    else { const note = c.slice(7).join(' '); out.push({ time: ms, asset: asset, side: side, price: price, qty: qty, fee: fee, exch: c[6] || '', note: note, kind: guessKind(note) }); }
   });
   return { rows: out, bad: bad };
 }
