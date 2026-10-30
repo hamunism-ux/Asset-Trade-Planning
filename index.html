@@ -320,7 +320,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.5';
+const APP_UI_VER = '3.6';
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
 const SCLS = { '規劃': 's-plan', '已掛單': 's-placed', '已成交': 's-filled', '暫停': 's-paused' };
@@ -536,6 +536,15 @@ const LOCAL = {
       fee: nv(t.fee), exch: String(t.exch || '').trim(), note: String(t.note || '').trim(), ccy: t.ccy || '', kind: REAL_KINDS.indexOf(t.kind) >= 0 ? t.kind : guessKind(t.note) });
   },
   api_deleteReal(s, ids) { const set = new Set(ids); s.real = s.real.filter(r => !set.has(r.id)); },
+  api_saveDone(s, d) {
+    const name = String(d.name || '').trim(), amt = nv(d.amt);
+    if (!d.acct || !name || amt === null) throw new Error('請填帳戶、項目名稱與金額');
+    let row = s.done.find(x => x.id === d.id);
+    if (!row && !d._new) throw new Error('找不到項目 ' + d.id);
+    if (!row) { row = { id: d.id }; s.done.push(row); }
+    Object.assign(row, { acct: d.acct, name: name, amt: amt, ccy: d.ccy || 'TWD', year: String(d.year || '').slice(0, 12), note: String(d.note || '').trim() });
+  },
+  api_deleteDone(s, ids) { const set = new Set(ids); s.done = s.done.filter(r => !set.has(r.id)); },
   api_confirmReal(s, ids) { const set = new Set(ids); s.real.forEach(r => { if (set.has(r.id)) r.confirmed = true; }); },
   api_importReal(s, acct, items, ccy) {
     if (s.settings.accounts.indexOf(acct) < 0) throw new Error('找不到帳戶 ' + acct);
@@ -584,6 +593,7 @@ function prepArgs(fn, args) {
   if (fn === 'api_recordFills') (args[0] || []).forEach(it => { if (!it.logId) it.logId = uid('T'); if (!it.realId) it.realId = uid('R'); });
   if (fn === 'api_saveTrade' && !args[0].id) { args[0].id = uid('T'); args[0]._new = true; }
   if (fn === 'api_saveReal' && !args[0].id) { args[0].id = uid('R'); args[0]._new = true; }
+  if (fn === 'api_saveDone' && !args[0].id) { args[0].id = uid('D'); args[0]._new = true; }
   if (fn === 'api_importReal') (args[1] || []).forEach(it => { if (!it.id) it.id = uid('R'); });
   return args;
 }
@@ -782,6 +792,7 @@ function fxConv(v, from, to, d) {
 function toDisplay(raw) {
   if (!raw || raw.needsSetup) return raw;
   if (!raw.real) raw.real = [];
+  if (!raw.done) raw.done = [];
   const s = JSON.parse(JSON.stringify(raw));
   const noFx = !(raw.fx && raw.fx.latest);
   const am = {};
@@ -962,7 +973,8 @@ function vOverview() {
     ${kpi('已兌現（賣出）', fusd(realized), '成交紀錄合計')}
     ${kpi('已花費（買入）', fusd(spent), '成交紀錄合計')}
     ${kpi('未成交賣單價值', fusd(openSellV), '已掛單＋規劃')}
-    ${kpi('未成交買單所需資金', fusd(openBuyV), '已掛單＋規劃')}</div>`;
+    ${kpi('未成交買單所需資金', fusd(openBuyV), '已掛單＋規劃')}
+    ${(() => { const dl = doneList(); if (!dl.length) return ''; const by = doneTotal(dl); let tot = 0, ok = true; Object.keys(by).forEach(c => { const v = fxConv(by[c], c, A.totCcy); if (v === null) ok = false; else tot += v; }); return kpi('已結束項目已實現', ok ? fusd(tot) : esc(doneTotalText(dl)), `${dl.length} 項，不會再交易`); })()}</div>`;
   // 這個帳戶沒有持倉設定、也沒有任何掛單的資產不顯示
   const shown = s.assets.filter(a => acctUses(a.name));
   const hidden = s.assets.length - shown.length;
@@ -1813,7 +1825,7 @@ function acctDelete(a) {
   const hasNote = (s.settings.notes[a] || '').trim() !== '';
   modal(`<h3 style="color:var(--bad)">刪除帳戶「${esc(a)}」</h3>
     <p>會一併<b>永久刪除</b>這個帳戶的：</p>
-    <ul style="color:var(--ink2);padding-left:18px"><li>${n1} 張掛單</li><li>${n2} 筆掛單成交</li><li>${n4} 筆真實交易</li><li>${n3} 列持倉</li><li>${hasNote ? '策略筆記' : '策略筆記（目前是空的）'}</li></ul>
+    <ul style="color:var(--ink2);padding-left:18px"><li>${n1} 張掛單</li><li>${n2} 筆掛單成交</li><li>${n4} 筆真實交易</li><li>${s.done.filter(x => x.acct === a).length} 個已結束項目</li><li>${n3} 列持倉</li><li>${hasNote ? '策略筆記' : '策略筆記（目前是空的）'}</li></ul>
     <div class="note-box">⚠ 刪除後無法復原。如果只是不想看到，可以不要切換到這個帳戶。</div>
     <label class="chk"><input type="checkbox" id="delSure"><span>我確認要刪除「${esc(a)}」與上面所有資料</span></label>
     <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn danger" data-m="ok" id="delOk" disabled>刪除帳戶</button></div>`, act => {
@@ -2215,7 +2227,7 @@ function vReal() {
     h += '</div>';
   }
   if (all.some(t => t.asset === f.asset)) h += `<div class="card" style="margin-bottom:12px"><h2>${logo(f.asset, 18)} ${esc(f.asset)} 歷史價格與買賣 <small class="muted" style="font-weight:400">${f.side === '全部' ? '' : '只畫' + f.side + '入／出'}${f.year ? ' · ' + f.year + ' 年' : ''}</small></h2><div id="rChart" style="position:relative"></div><div id="rChartMeta" class="small muted" style="margin-top:6px"></div><div class="legend" style="margin-top:4px"><span><i style="background:var(--placed)"></i>買入</span><span><i style="background:var(--plan)"></i>賣出</span><span class="muted">圓點大小 = 數量</span></div></div>`;
-  if (!list.length) { view().innerHTML = h + `<div class="card empty">${all.length ? '沒有符合篩選的紀錄' : '還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。'}</div>`; realChart(); return; }
+  if (!list.length) { view().innerHTML = h + `<div class="card empty">${all.length ? '沒有符合篩選的紀錄' : '還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。'}</div>` + doneSection(); realChart(); return; }
   const selAll = list.every(t => A.rsel.has(t.id));
   h += `<div class="tw" style="max-height:calc(100vh - 300px)"><table><thead><tr><th class="c"><input type="checkbox" data-act="rselAll" ${selAll ? 'checked' : ''}></th><th class="l">時間</th><th class="l">資產</th><th class="c">方向</th><th>價格</th><th>數量</th><th>金額</th><th>手續費</th><th class="l">交易所</th><th class="l">來源</th><th class="l">備註</th><th></th></tr></thead><tbody>`;
   list.forEach(t => {
@@ -2228,8 +2240,46 @@ function vReal() {
       <td class="l muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.note)}">${esc(t.note)}</td>
       <td><button class="ibtn" data-act="editReal" data-id="${esc(t.id)}" title="編輯">✎</button></td></tr>`;
   });
-  view().innerHTML = h + '</tbody></table></div>';
+  view().innerHTML = h + '</tbody></table></div>' + doneSection();
   realChart();
+}
+// ── 已結束項目：不會再交易、只剩一個已實現金額的東西，收合成一行
+function doneList() { return A.s.done.filter(inAcct); }
+function doneTotal(list) { const by = {}; list.forEach(d => { by[d.ccy] = (by[d.ccy] || 0) + d.amt; }); return by; }
+function doneTotalText(list) {
+  const by = doneTotal(list), ks = Object.keys(by);
+  if (!ks.length) return '—';
+  return ks.map(c => (by[c] < 0 ? '−' : '') + (SYM[c] || c) + nf(Math.abs(by[c]), 0)).join(' ＋ ');
+}
+function doneSection() {
+  const list = doneList();
+  const open = A.doneOpen;
+  let h = `<div class="card mt" id="doneCard"><h2 style="cursor:pointer" data-act="doneToggle">${open ? '▾' : '▸'} 已結束項目 <small class="muted" style="font-weight:400">${list.length} 項 · 合計 ${esc(doneTotalText(list))}</small><span class="sp"></span>${open ? '<button class="btn sm" data-act="doneAdd">＋ 新增</button>' : ''}</h2>`;
+  if (open) {
+    h += `<p class="small muted" style="margin-top:0">已經結束、不會再交易的項目，只記最後實現了多少。不算進上面的任何資產。</p>`;
+    if (!list.length) h += '<div class="empty" style="padding:14px">還沒有項目</div>';
+    else h += `<div class="tw"><table><thead><tr><th class="l">項目</th><th>已實現金額</th><th class="l">年份</th><th class="l">備註</th><th></th></tr></thead><tbody>` +
+      list.map(d => `<tr><td class="l"><b>${esc(d.name)}</b></td><td class="${d.amt < 0 ? 'down' : ''}">${(d.amt < 0 ? '−' : '') + (SYM[d.ccy] || d.ccy) + nf(Math.abs(d.amt), 0)}</td><td class="l muted">${esc(d.year)}</td><td class="l muted" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.note)}">${esc(d.note)}</td><td><button class="ibtn" data-act="doneEdit" data-id="${esc(d.id)}" title="編輯">✎</button></td></tr>`).join('') +
+      `<tr><td class="l"><b>合計</b></td><td><b>${esc(doneTotalText(list))}</b></td><td colspan="3"></td></tr></tbody></table></div>`;
+  }
+  return h + '</div>';
+}
+function openDone(id) {
+  const d = id ? A.s.done.find(x => x.id === id) : null;
+  modal(`<h3>${d ? '編輯已結束項目' : '新增已結束項目'}</h3>
+    <div class="fg"><label class="full">項目名稱<input type="text" id="dN" value="${esc(d ? d.name : '')}" placeholder="例如 Pionex、ENS 空投"></label>
+      <label>已實現金額（可為負）<input type="number" step="any" id="dA" value="${d ? d.amt : ''}"></label>
+      <label>幣別<select id="dC">${['TWD', 'USD', 'CNY', 'HKD'].map(c => `<option value="${c}" ${(d ? d.ccy : 'TWD') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+      <label>年份／期間（選填）<input type="text" id="dY" value="${esc(d ? d.year : '')}" placeholder="2021 或 2019–2021"></label>
+      <label class="full">備註（選填）<input type="text" id="dNote" value="${esc(d ? d.note : '')}"></label></div>
+    <div class="foot">${d ? '<button class="btn danger" data-m="del" style="margin-right:auto">刪除</button>' : ''}<button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">儲存</button></div>`, act => {
+    if (act === 'del') { closeModal(); return confirmBox('刪除「' + d.name + '」', '刪除後無法復原。', '刪除', () => call('api_deleteDone', [[d.id]], () => { toast('已刪除'); render(); })); }
+    if (act !== 'ok') return;
+    const rec = { id: d ? d.id : '', acct: A.acct, name: $('dN').value.trim(), amt: num($('dA').value), ccy: $('dC').value, year: $('dY').value.trim(), note: $('dNote').value.trim() };
+    if (!rec.name || rec.amt === null) return toast('請填項目名稱與金額', true);
+    closeModal();
+    call('api_saveDone', [rec], () => { toast('已儲存'); A.doneOpen = true; render(); });
+  });
 }
 function renderRealBatch() {
   let el = document.querySelector('.batch');
@@ -2567,6 +2617,9 @@ document.addEventListener('click', e => {
     case 'addReal': return openReal(null);
     case 'realImport': return openRealImport();
     case 'realConfirm': return call('api_confirmReal', [[d.id]], () => { toast('已確認'); render(); });
+    case 'doneToggle': A.doneOpen = !A.doneOpen; render(); { const el = $('doneCard'); if (el && A.doneOpen) el.scrollIntoView({ block: 'nearest' }); } return;
+    case 'doneAdd': return openDone(null);
+    case 'doneEdit': return openDone(d.id);
     case 'realFollow': return call('api_saveHolding', [{ acct: A.acct, asset: d.asset, mode: '真實交易' }], () => { toast(`${d.asset} 的持倉改為跟隨真實交易紀錄`); render(); });
     case 'rfLog': A.rf.log = A.rf.log === false ? true : false; return realChart();
     case 'phRefresh': PH.cache[A.rf.asset] = null; PH.fail[A.rf.asset] = ''; LS.del(phKey(A.rf.asset)); phLoad(A.rf.asset, true); return realChart();
