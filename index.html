@@ -981,8 +981,8 @@ function vOverview() {
       <div class="kv" style="margin-top:9px">
         <span>下一個賣價</span><b>${sS.next ? fp(sS.next, a.name) + `<small>${fpct(sS.next / a.price - 1)}</small>` : '—'}</b>
         <span>下一個買價</span><b>${sB.next ? fp(sB.next, a.name) + `<small>${fpct(sB.next / a.price - 1)}</small>` : '—'}</b>
-        <span>已兌現／未成交賣單</span><b>${fusd(sS.tV, a.name)}<small>${fusd(sS.openV, a.name)}</small></b>
-        ${sB.os.length ? `<span>買單已成交／未成交</span><b>${fq(sB[ST.FILLED].q, a.name)}<small>${fq(sB.openQ, a.name)}</small></b>` : ''}
+        <span>當前掛單已兌現／未成交賣單</span><b>${fusd(sS.tV, a.name)}<small>${fusd(sS.openV, a.name)}</small></b>
+        ${sB.os.length ? `<span>當前買單已成交／未成交</span><b>${fq(sB[ST.FILLED].q, a.name)}<small>${fq(sB.openQ, a.name)}</small></b>` : ''}
       </div></div>`;
   });
   h += '</div>';
