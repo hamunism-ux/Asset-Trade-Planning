@@ -33,7 +33,8 @@
   /* top bar */
   header.top { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 14px; padding: 0 16px;
     height: 54px; background: var(--card); border-bottom: 1px solid var(--line); }
-  .brand { font-weight: 750; font-size: 15px; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .brand { font-weight: 750; font-size: 15px; white-space: nowrap; display: flex; align-items: center; gap: 8px; line-height: 1.15; }
+  .brand .tt { display: flex; flex-direction: column; }
   .brand i { width: 10px; height: 10px; border-radius: 3px; background: var(--plan); display: inline-block; box-shadow: 12px 0 0 var(--placed); margin-right: 12px; }
   nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; flex: 1; }
   nav::-webkit-scrollbar { display: none; }
@@ -256,7 +257,7 @@
   .setup { max-width: 560px; margin: 60px auto; text-align: center; }
 
   .gchart { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); }
-  .brand .en { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: .02em; padding-top: 2px; }
+  .brand .en { font-size: 10.5px; font-weight: 500; color: var(--muted); letter-spacing: .02em; margin-top: 1px; }
   @media (max-width: 900px) {
     .gchart { grid-template-columns: 1fr; }
     .sim { grid-template-columns: 1fr; }
@@ -283,7 +284,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand"><i></i>資產買賣紀錄與掛單規劃本<span class="en">Asset Trade &amp; Ladder Planner</span></div>
+  <div class="brand"><i></i><span class="tt">資產買賣紀錄與掛單規劃本<span class="en">Asset Trade &amp; Ladder Planner</span></span></div>
   <nav id="nav">
     <button data-v="overview" class="on">總覽</button>
     <button data-v="orders">掛單簿</button>
@@ -320,7 +321,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.6';
+const APP_UI_VER = '3.7';
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
 const SCLS = { '規劃': 's-plan', '已掛單': 's-placed', '已成交': 's-filled', '暫停': 's-paused' };
@@ -977,7 +978,6 @@ function vOverview() {
     ${(() => { const dl = doneList(); if (!dl.length) return ''; const by = doneTotal(dl); let tot = 0, ok = true; Object.keys(by).forEach(c => { const v = fxConv(by[c], c, A.totCcy); if (v === null) ok = false; else tot += v; }); return kpi('已結束項目已實現', ok ? fusd(tot) : esc(doneTotalText(dl)), `${dl.length} 項，不會再交易`); })()}</div>`;
   // 這個帳戶沒有持倉設定、也沒有任何掛單的資產不顯示
   const shown = s.assets.filter(a => acctUses(a.name));
-  const hidden = s.assets.length - shown.length;
   if (!shown.length) h += `<div class="card empty">帳戶「${esc(A.acct)}」還沒有任何資產的持倉或掛單。<br>可以到「掛單簿 → ＋ 新增掛單」、「模擬器」安排掛單，或到「設定 → 持倉」填入持倉。</div>`;
   h += '<div class="acards">';
   shown.forEach(a => {
@@ -998,7 +998,7 @@ function vOverview() {
       </div></div>`;
   });
   h += '</div>';
-  if (shown.length) h += '<div class="legend mt"><span><i style="background:var(--filled)"></i>已成交</span><span><i style="background:var(--placed)"></i>已掛單</span><span><i style="background:var(--plan)"></i>規劃</span><span class="muted">（長條 = 賣單數量占比）</span>' + (hidden && shown.length ? `<span class="muted">　另有 ${hidden} 個資產在這個帳戶沒有持倉也沒有掛單，已隱藏</span>` : '') + '</div>';
+  if (shown.length) h += '<div class="legend mt"><span><i style="background:var(--filled)"></i>已成交</span><span><i style="background:var(--placed)"></i>已掛單</span><span><i style="background:var(--plan)"></i>規劃</span><span class="muted">（長條 = 賣單數量占比）</span></div>';
   view().innerHTML = h;
 }
 /** 目前帳戶是否用到這個資產：有持倉設定，或有任何掛單（含已成交、暫停） */
@@ -2216,9 +2216,7 @@ function vReal() {
       const follow = hold && hold.mode === '真實交易';
       const diff = hq !== null ? st.pos - hq : null, tol = Math.pow(10, -qdOf(a.name)) / 2;
       h += `<div class="kpi"${assets.length === 1 ? ' style="max-width:560px"' : ''}><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆${st.fee ? '　手續費 ' + fusd(st.fee, a.name) : ''}</div>
-        <div class="kv" style="margin-top:4px"><span>買入</span><b>${fq(st.bq, a.name)}<small>${fusd(st.bv, a.name)}</small></b>
-        <span>賣出</span><b>${fq(st.sq, a.name)}<small>${fusd(st.sv, a.name)}</small></b>
-        <span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${a.price ? '市值 ' + fusd(st.pos * a.price, a.name) : ''}</small></b>
+        <div class="kv" style="margin-top:4px"><span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${a.price ? '市值 ' + fusd(st.pos * a.price, a.name) : ''}</small></b>
         <span>法幣淨投入<small class="muted" style="display:block">用錢買 − 賣成錢；幣幣交換、轉帳不算</small></span><b class="${st.net <= 0 ? 'up' : ''}">${st.net > 0 ? fusd(st.net, a.name) : '已全部回本'}<small>${st.net > 0 ? (st.unitCost ? '剩餘部位每單位成本 ' + fp(st.unitCost, a.name) : '') : '多收回 ' + fusd(-st.net, a.name) + '，剩餘部位成本 0'}</small></b>
         ${st.swapIn || st.swapOut || st.xIn || st.xOut ? `<span>幣幣／轉帳</span><b style="font-weight:500;font-size:12px">${st.swapIn || st.swapOut ? `換入 ${fq(st.swapIn, a.name)}、換出 ${fq(st.swapOut, a.name)}` : ''}${(st.swapIn || st.swapOut) && (st.xIn || st.xOut) ? '；' : ''}${st.xIn || st.xOut ? `轉入 ${fq(st.xIn, a.name)}、轉出 ${fq(st.xOut, a.name)}` : ''}</b>` : ''}
         <span>設定的持倉</span><b>${follow ? `<span class="muted small">跟隨真實交易</span> ${fq(hq, a.name)}` : hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}${!follow && diff !== null && Math.abs(diff) > tol ? `<small class="${diff > 0 ? 'up' : 'down'}">差 ${diff > 0 ? '+' : ''}${fq(diff, a.name)}</small>` : ''}</b></div>
