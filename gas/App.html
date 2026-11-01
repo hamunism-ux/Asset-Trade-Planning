@@ -313,7 +313,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.8';
+const APP_UI_VER = '3.9';
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
 const SCLS = { '規劃': 's-plan', '已掛單': 's-placed', '已成交': 's-filled', '暫停': 's-paused' };
@@ -963,11 +963,11 @@ function vOverview() {
   });
   h += `<div class="kpis" style="margin-bottom:12px">
     ${kpi('持倉總價值', holdKnown ? fusd(holdV) : '—', holdKnown ? '只含已設定持倉的帳戶' : '到「設定 → 持倉」填入持倉量')}
-    ${kpi('已兌現（賣出）', fusd(realized), '成交紀錄合計')}
-    ${kpi('已花費（買入）', fusd(spent), '成交紀錄合計')}
-    ${kpi('未成交賣單價值', fusd(openSellV), '已掛單＋規劃')}
-    ${kpi('未成交買單所需資金', fusd(openBuyV), '已掛單＋規劃')}
-    ${(() => { const dl = doneList(); if (!dl.length) return ''; const by = doneTotal(dl); let tot = 0, ok = true; Object.keys(by).forEach(c => { const v = fxConv(by[c], c, A.totCcy); if (v === null) ok = false; else tot += v; }); return kpi('已結束項目已實現', ok ? fusd(tot) : esc(doneTotalText(dl)), `${dl.length} 項，不會再交易`); })()}</div>`;
+    ${kpi('掛單已賣出', fusd(realized), '當前掛單計畫 · 已成交')}
+    ${kpi('掛單已買入', fusd(spent), '當前掛單計畫 · 已成交')}
+    ${kpi('掛單待賣', fusd(openSellV), '當前掛單計畫 · 已掛單＋規劃')}
+    ${kpi('掛單待買', fusd(openBuyV), '當前掛單計畫 · 已掛單＋規劃')}
+    ${(() => { const dl = doneList(); if (!dl.length) return ''; const by = doneTotal(dl); let tot = 0, ok = true; Object.keys(by).forEach(c => { const v = fxConv(by[c], c, A.totCcy); if (v === null) ok = false; else tot += v; }); return kpi('歷史已結束項目', ok ? fusd(tot) : esc(doneTotalText(dl)), `${dl.length} 項 · 已實現，不再交易`); })()}</div>`;
   // 這個帳戶沒有持倉設定、也沒有任何掛單的資產不顯示
   const shown = s.assets.filter(a => acctUses(a.name));
   if (!shown.length) h += `<div class="card empty">帳戶「${esc(A.acct)}」還沒有任何資產的持倉或掛單。<br>可以到「掛單簿 → ＋ 新增掛單」、「模擬器」安排掛單，或到「設定 → 持倉」填入持倉。</div>`;
