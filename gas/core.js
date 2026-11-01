@@ -14,7 +14,7 @@
  * ============================================================
  */
 
-const APP_VER = '3.9';
+const APP_VER = '3.10';
 const SH = { ORD: '掛單簿', LOG: '成交紀錄', REAL: '真實交易紀錄', DONE: '已結束項目', HOLD: '持倉', GRP: '組參數', ASSET: '資產', SET: '設定' };
 const TABLES = ['ORD', 'LOG', 'REAL', 'DONE', 'HOLD', 'GRP', 'ASSET', 'SET'];
 const OLD_SHEETS = ['儀表板', '階梯檢視', '說明與筆記', '_圖表資料'];   // v1 留下的工作表
@@ -110,12 +110,20 @@ function uiHtml_(e) {
         const CH = 90000, n = Math.ceil(html.length / CH), kv = {};
         for (let i = 0; i < n; i++) kv['ui:' + i] = html.slice(i * CH, (i + 1) * CH);
         kv['ui:meta'] = JSON.stringify({ n: n, at: Date.now() });
-        cache.putAll(kv, 600);
+        cache.putAll(kv, 180);
       }
-      return HtmlService.createHtmlOutput(html);
+      return HtmlService.createHtmlOutput(uiInject_(html, e));
     } catch (err) { console.warn('介面改用專案內的 App.html：' + err.message); }
   }
-  return HtmlService.createHtmlOutputFromFile('App');
+  return HtmlService.createHtmlOutput(uiInject_(HtmlService.createHtmlOutputFromFile('App').getContent(), e));
+}
+/** 把「重新載入最新介面」的網址塞進頁面（讓網頁在伺服器更新後可以一鍵重載） */
+function uiInject_(html, e) {
+  let url = '';
+  try { url = ScriptApp.getService().getUrl() || ''; } catch (x) { url = ''; }
+  const k = e && e.parameter && e.parameter.k ? String(e.parameter.k) : '';
+  const self = url ? url + '?fresh=1' + (k ? '&k=' + encodeURIComponent(k) : '') : '';
+  return html.replace('__SELF_URL__', self.replace(/'/g, ''));
 }
 /** 選單：切換介面來源（GitHub 最新版 ↔ 專案裡的 App.html） */
 function uiSourceToggle() {
@@ -1629,5 +1637,5 @@ function assignIds_(orders, prefix) {
 }
 
 // ── 匯出（由 build 產生）──
-const __EXPORTS = { __CORE_EXPORTS__: true, APP_VER: APP_VER, aiCfg_: aiCfg_, aiContext_: aiContext_, aiNeedKey_: aiNeedKey_, aiSheet_: aiSheet_, api_addAccount: api_addAccount, api_addOrder: api_addOrder, api_addOrders: api_addOrders, api_aiDelete: api_aiDelete, api_aiList: api_aiList, api_aiStep: api_aiStep, api_confirmReal: api_confirmReal, api_deleteAccount: api_deleteAccount, api_deleteDone: api_deleteDone, api_deleteHolding: api_deleteHolding, api_deleteOrders: api_deleteOrders, api_deleteReal: api_deleteReal, api_deleteTrade: api_deleteTrade, api_duplicate: api_duplicate, api_importReal: api_importReal, api_load: api_load, api_priceHistory: api_priceHistory, api_recordFills: api_recordFills, api_refreshPrices: api_refreshPrices, api_renameAccount: api_renameAccount, api_saveAi: api_saveAi, api_saveAssets: api_saveAssets, api_saveDone: api_saveDone, api_saveHolding: api_saveHolding, api_saveNotes: api_saveNotes, api_saveReal: api_saveReal, api_saveSettings: api_saveSettings, api_saveTrade: api_saveTrade, api_setPassword: api_setPassword, api_setStatus: api_setStatus, api_setup: api_setup, api_updateOrder: api_updateOrder, assignIds_: assignIds_, cell_: cell_, cgCacheKey_: cgCacheKey_, cgPrices_: cgPrices_, cid_: cid_, claude_: claude_, cleanAcct_: cleanAcct_, daysBetween_: daysBetween_, doGet: doGet, doPost: doPost, doSetup_: doSetup_, ensureTable_: ensureTable_, fixImportNotes_: fixImportNotes_, fixRealKinds_: fixRealKinds_, fxFetchMany_: fxFetchMany_, fxForLoad_: fxForLoad_, fxHist_: fxHist_, fxLatest_: fxLatest_, fxParse_: fxParse_, fxUrls_: fxUrls_, ghFetch_: ghFetch_, guessKind_: guessKind_, intOr_: intOr_, isGfExpr_: isGfExpr_, isReady_: isReady_, ms_: ms_, mutate_: mutate_, nextIds_: nextIds_, normCcy_: normCcy_, num_: num_, onOpen: onOpen, phCoinGecko_: phCoinGecko_, phGoogleFinance_: phGoogleFinance_, phKraken_: phKraken_, phRead_: phRead_, phWeekly_: phWeekly_, phYahooSymbol_: phYahooSymbol_, phYahoo_: phYahoo_, pwHash_: pwHash_, readAssetRows_: readAssetRows_, readAssets_: readAssets_, readOrders_: readOrders_, readSettings_: readSettings_, readT_: readT_, readV1_: readV1_, realKind_: realKind_, round_: round_, rpc: rpc, safeEq_: safeEq_, seed_: seed_, setup: setup, sheet_: sheet_, showWebAppLink: showWebAppLink, ss_: ss_, str_: str_, syncCalls_: syncCalls_, syncMutations_: syncMutations_, syncOps_: syncOps_, syncResetKey: syncResetKey, syncSetup: syncSetup, syncTransient_: syncTransient_, thinkingFor_: thinkingFor_, toSet_: toSet_, uiHtml_: uiHtml_, uiSourceToggle: uiSourceToggle, uiSource_: uiSource_, updateFromGitHub: updateFromGitHub, writeAssets_: writeAssets_, writeOrders_: writeOrders_, writeSettings_: writeSettings_, writeT_: writeT_ };
+const __EXPORTS = { __CORE_EXPORTS__: true, APP_VER: APP_VER, aiCfg_: aiCfg_, aiContext_: aiContext_, aiNeedKey_: aiNeedKey_, aiSheet_: aiSheet_, api_addAccount: api_addAccount, api_addOrder: api_addOrder, api_addOrders: api_addOrders, api_aiDelete: api_aiDelete, api_aiList: api_aiList, api_aiStep: api_aiStep, api_confirmReal: api_confirmReal, api_deleteAccount: api_deleteAccount, api_deleteDone: api_deleteDone, api_deleteHolding: api_deleteHolding, api_deleteOrders: api_deleteOrders, api_deleteReal: api_deleteReal, api_deleteTrade: api_deleteTrade, api_duplicate: api_duplicate, api_importReal: api_importReal, api_load: api_load, api_priceHistory: api_priceHistory, api_recordFills: api_recordFills, api_refreshPrices: api_refreshPrices, api_renameAccount: api_renameAccount, api_saveAi: api_saveAi, api_saveAssets: api_saveAssets, api_saveDone: api_saveDone, api_saveHolding: api_saveHolding, api_saveNotes: api_saveNotes, api_saveReal: api_saveReal, api_saveSettings: api_saveSettings, api_saveTrade: api_saveTrade, api_setPassword: api_setPassword, api_setStatus: api_setStatus, api_setup: api_setup, api_updateOrder: api_updateOrder, assignIds_: assignIds_, cell_: cell_, cgCacheKey_: cgCacheKey_, cgPrices_: cgPrices_, cid_: cid_, claude_: claude_, cleanAcct_: cleanAcct_, daysBetween_: daysBetween_, doGet: doGet, doPost: doPost, doSetup_: doSetup_, ensureTable_: ensureTable_, fixImportNotes_: fixImportNotes_, fixRealKinds_: fixRealKinds_, fxFetchMany_: fxFetchMany_, fxForLoad_: fxForLoad_, fxHist_: fxHist_, fxLatest_: fxLatest_, fxParse_: fxParse_, fxUrls_: fxUrls_, ghFetch_: ghFetch_, guessKind_: guessKind_, intOr_: intOr_, isGfExpr_: isGfExpr_, isReady_: isReady_, ms_: ms_, mutate_: mutate_, nextIds_: nextIds_, normCcy_: normCcy_, num_: num_, onOpen: onOpen, phCoinGecko_: phCoinGecko_, phGoogleFinance_: phGoogleFinance_, phKraken_: phKraken_, phRead_: phRead_, phWeekly_: phWeekly_, phYahooSymbol_: phYahooSymbol_, phYahoo_: phYahoo_, pwHash_: pwHash_, readAssetRows_: readAssetRows_, readAssets_: readAssets_, readOrders_: readOrders_, readSettings_: readSettings_, readT_: readT_, readV1_: readV1_, realKind_: realKind_, round_: round_, rpc: rpc, safeEq_: safeEq_, seed_: seed_, setup: setup, sheet_: sheet_, showWebAppLink: showWebAppLink, ss_: ss_, str_: str_, syncCalls_: syncCalls_, syncMutations_: syncMutations_, syncOps_: syncOps_, syncResetKey: syncResetKey, syncSetup: syncSetup, syncTransient_: syncTransient_, thinkingFor_: thinkingFor_, toSet_: toSet_, uiHtml_: uiHtml_, uiInject_: uiInject_, uiSourceToggle: uiSourceToggle, uiSource_: uiSource_, updateFromGitHub: updateFromGitHub, writeAssets_: writeAssets_, writeOrders_: writeOrders_, writeSettings_: writeSettings_, writeT_: writeT_ };
 return __EXPORTS;

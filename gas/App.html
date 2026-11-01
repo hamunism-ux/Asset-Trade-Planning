@@ -313,7 +313,8 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.9';
+const APP_UI_VER = '3.10';
+const SELF_URL = '__SELF_URL__';   // 由伺服器塞入（Apps Script 版）
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
 const SCLS = { '規劃': 's-plan', '已掛單': 's-placed', '已成交': 's-filled', '暫停': 's-paused' };
@@ -830,8 +831,19 @@ const nativeCcy = n => rawAsset(n).ccy || 'USD';
 const rawOrder = id => A.raw.orders.find(x => x.id === id);
 /** 顯示幣別 → 原幣（套用模擬器時用） */
 function toNative(v, asset) { const a = A.am[asset]; return a && a.f && a.f !== 1 ? v / a.f : v; }
+function verBanner() {
+  if (GAS === false) return;
+  const old = $('verBanner'); if (old) old.remove();
+  const sv = A.raw && A.raw.ver;
+  if (!sv || sv === APP_UI_VER || !/^https?:/.test(SELF_URL)) return;
+  const b = document.createElement('div'); b.id = 'verBanner';
+  b.style.cssText = 'position:fixed;left:50%;top:60px;transform:translateX(-50%);z-index:45;background:var(--ink);color:#fff;padding:8px 14px;border-radius:9px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.2)';
+  b.innerHTML = `介面有新版（伺服器 v${esc(sv)}，目前介面 v${APP_UI_VER}）　<a href="${esc(SELF_URL)}" target="_top" style="color:#ffd166;font-weight:600">重新載入</a>　<span style="cursor:pointer;opacity:.7;margin-left:6px" onclick="this.parentNode.remove()">✕</span>`;
+  document.body.appendChild(b);
+}
 function setState(s) {
   A.raw = s;
+  verBanner();
   A.s = toDisplay(s);
   s = A.s;
   derive();
