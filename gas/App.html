@@ -147,6 +147,8 @@
   .kind.k-swap { color: #4b3fa0; background: #eeebfb; border-color: #d6d0f3; }
   .kind.k-xfer { color: #6b6e74; }
   tr.sel td { background: var(--accent-wash) !important; }
+  tr.r-hl td { animation: rhl 2.4s ease-out; }
+  @keyframes rhl { 0%, 55% { background: #ffe9a8; } 100% { background: transparent; } }
   tr.grp td { background: #f7f6f2 !important; font-weight: 600; text-align: left; border-bottom: 1px solid var(--line); padding: 8px 9px; position: sticky; top: 33px; z-index: 1; }
   tr.grp .gs { font-weight: 400; color: var(--ink2); font-size: 12px; margin-left: 10px; }
   td input.in { height: 26px; width: 92px; text-align: right; padding: 0 6px; border: 1px solid transparent; background: transparent; border-radius: 5px; font-variant-numeric: tabular-nums; }
@@ -316,7 +318,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.11';
+const APP_UI_VER = '3.12';
 const SELF_URL = '__SELF_URL__';   // 由伺服器塞入（Apps Script 版）
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
@@ -2232,13 +2234,13 @@ function vReal() {
     });
     h += '</div>';
   }
-  if (all.some(t => t.asset === f.asset)) h += `<div class="card" style="margin-bottom:12px"><h2>${logo(f.asset, 18)} ${esc(f.asset)} 歷史價格與買賣 <small class="muted" style="font-weight:400">${f.side === '全部' ? '' : '只畫' + f.side + '入／出'}${f.year ? ' · ' + f.year + ' 年' : ''}</small></h2><div id="rChart" style="position:relative"></div><div id="rChartMeta" class="small muted" style="margin-top:6px"></div><div class="legend" style="margin-top:4px"><span><i style="background:var(--placed)"></i>買入</span><span><i style="background:var(--plan)"></i>賣出</span><span class="muted">圓點大小 = 數量</span></div></div>`;
+  if (all.some(t => t.asset === f.asset)) h += `<div class="card" style="margin-bottom:12px"><h2>${logo(f.asset, 18)} ${esc(f.asset)} 歷史價格與買賣 <small class="muted" style="font-weight:400">${f.side === '全部' ? '' : '只畫' + f.side + '入／出'}${f.year ? ' · ' + f.year + ' 年' : ''}</small></h2><div id="rChart" style="position:relative"></div><div id="rChartMeta" class="small muted" style="margin-top:6px"></div><div class="legend" style="margin-top:4px"><span><i style="background:var(--placed)"></i>買入</span><span><i style="background:var(--plan)"></i>賣出</span><span class="muted">圓點大小 = 數量 · 點圓點可跳到該筆交易</span></div></div>`;
   if (!list.length) { view().innerHTML = h + `<div class="card empty">${all.length ? '沒有符合篩選的紀錄' : '還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。'}</div>` + doneSection(); realChart(); return; }
   const selAll = list.every(t => A.rsel.has(t.id));
   h += `<div class="tw" style="max-height:calc(100vh - 300px)"><table><thead><tr><th class="c"><input type="checkbox" data-act="rselAll" ${selAll ? 'checked' : ''}></th><th class="l">時間</th><th class="l">資產</th><th class="c">方向</th><th>價格</th><th>數量</th><th>金額</th><th>手續費</th><th class="l">交易所</th><th class="l">來源</th><th class="l">備註</th><th></th></tr></thead><tbody>`;
   list.forEach(t => {
     const pend = !t.confirmed;
-    h += `<tr class="${pend ? 'r-pend' : ''} ${A.rsel.has(t.id) ? 'sel' : ''}"><td class="c"><input type="checkbox" data-act="rsel" data-id="${esc(t.id)}" ${A.rsel.has(t.id) ? 'checked' : ''}></td>
+    h += `<tr class="${pend ? 'r-pend' : ''} ${A.rsel.has(t.id) ? 'sel' : ''}" data-rid="${esc(t.id)}"><td class="c"><input type="checkbox" data-act="rsel" data-id="${esc(t.id)}" ${A.rsel.has(t.id) ? 'checked' : ''}></td>
       <td class="l">${t.time ? fdate(t.time) : '<span class="muted">未填</span>'}</td><td class="l">${logo(t.asset, 16)} ${esc(t.asset)}</td>
       <td class="c" style="white-space:nowrap"><span class="st ${t.side === '買' ? 's-placed' : 's-plan'}" style="cursor:default">${esc(t.side)}</span>${kindOf(t) !== '法幣' ? `<span class="kind ${KIND_CLS[kindOf(t)]}" title="${kindOf(t) === '幣幣' ? '用別的幣換的，不算法幣投入' : '轉帳，沒有買賣'}">${esc(kindOf(t))}</span>` : ''}</td>
       <td>${t.noFx ? `<span class="muted" title="抓不到匯率，以原幣顯示">${esc(t.ccy)} </span>` : ''}${fp(t.price, t.asset)}${t.ccy !== ccyFor(t.asset) && !t.noFx ? `<br><small class="muted" title="原始紀錄${t.approx ? '；2024 年 3 月以前用年平均匯率換算' : ''}">${esc(SYM[t.ccy] || t.ccy)}${nf(t.price0, t.price0 >= 100 ? 0 : 4)}${t.approx ? '≈' : ''}</small>` : ''}</td><td><b>${fq(t.qty, t.asset)}</b></td><td>${fusd(t.amt, t.asset)}</td><td>${t.fee === null ? '' : fusd(t.fee, t.asset)}</td>
@@ -2451,11 +2453,19 @@ function realChart() {
       if (left + 280 > bb.width) left = Math.max(0, cb.left - bb.left - 290);
       tip.style.left = left + 'px'; tip.style.top = Math.max(0, top) + 'px';
     };
-    c.addEventListener('mouseenter', show); c.addEventListener('click', e => { e.stopPropagation(); show(); });
+    c.addEventListener('mouseenter', show); c.addEventListener('click', e => { e.stopPropagation(); show(); realGoto(pts[+c.dataset.i].t.id); });
     c.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
   });
   const meta = $('rChartMeta');
   if (meta) meta.innerHTML = `${ph && ph.source ? `價格線：${esc(ph.source)}，${esc(ph.updated || '')} 更新` : (PH.loading[asset] ? '正在抓歷史價格…' : `沒有歷史價格${PH.fail[asset] ? '（' + esc(PH.fail[asset]) + '）' : ''}，只畫交易點`)}　·　以 ${esc(dccy)} 計${native !== dccy ? '（價格線用最新匯率換算）' : ''}　·　${logY ? '對數刻度' : '線性刻度'} <span class="tlink" data-act="rfLog">切換</span>　·　<span class="tlink" data-act="phRefresh">重新抓取</span>`;
+}
+// 點圖上的圓點 → 捲到下方表格裡那一筆並閃一下
+function realGoto(id) {
+  const row = document.querySelector(`tr[data-rid="${String(id).replace(/"/g, '')}"]`);
+  if (!row) { toast('這筆交易不在目前的列表裡（可能被篩選條件排除）'); return; }
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.classList.remove('r-hl'); void row.offsetWidth; row.classList.add('r-hl');
+  setTimeout(() => row.classList.remove('r-hl'), 2600);
 }
 function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x || 1))); const m = x / p; return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p; }
 
@@ -3097,6 +3107,9 @@ HKD（港幣）⇒HKD (Hong Kong dollar)
 （介面與伺服器版本不同，通常幾分鐘內會一致；要立刻更新可在網址後加 &fresh=1 重新整理）⇒(UI and server versions differ; they usually match within minutes. To update now, add &fresh=1 to the URL and reload)
 （伺服器程式還是舊版，請把「任何人」的部署改成新版本）⇒(server code is outdated; update the "Anyone" deployment to the new version)
 全選⇒Select all
+這筆交易不在目前的列表裡（可能被篩選條件排除）⇒This trade is not in the current list (it may be filtered out)
+圓點大小 = 數量⇒Dot size = quantity
+點圓點可跳到該筆交易⇒Click a dot to jump to that trade
 計價幣別：每個資產的價格、掛單與成交都以它的「計價幣別」記錄（加密貨幣通常是 USD）。右上角可以切換用 原幣／USD／人民幣／台幣 顯示：現價與掛單用最新匯率換算，成交紀錄用成交日附近的匯率換算（沒有日期的用最新匯率）。⇒Native currency: each asset's price, orders and fills are recorded in its native currency (usually USD for crypto). The selector at the top right switches the display to Native / USD / CNY / TWD: prices and orders use the latest rate, fills use the rate around the fill date (undated ones use the latest rate).`.split('\n').forEach(l => { const i = l.indexOf('⇒'); if (i > 0) I18N_EXACT[l.slice(0, i).replace(/[\s\u3000]+/g, ' ')] = l.slice(i + 1); });
 
 // 含數字／變數的樣板（先整句比對，不中再試這些）
