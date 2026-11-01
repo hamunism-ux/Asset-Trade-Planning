@@ -258,6 +258,8 @@
 
   .gchart { grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); }
   .brand .en { font-size: 10.5px; font-weight: 500; color: var(--muted); letter-spacing: .02em; margin-top: 1px; }
+  body.en .brand .en { display: none; }
+  #gLang { font-weight: 700; min-width: 34px; letter-spacing: .02em; }
   @media (max-width: 900px) {
     .gchart { grid-template-columns: 1fr; }
     .sim { grid-template-columns: 1fr; }
@@ -287,8 +289,8 @@
   <div class="brand"><i></i><span class="tt">資產買賣紀錄與掛單規劃本<span class="en">Asset Trade &amp; Ladder Planner</span></span></div>
   <nav id="nav">
     <button data-v="overview" class="on">總覽</button>
+    <button data-v="sim">掛單情境模擬</button>
     <button data-v="orders">掛單簿</button>
-    <button data-v="sim">模擬器</button>
     <button data-v="trades">掛單成交狀態</button>
     <button data-v="real">真實交易紀錄</button>
     <button data-v="settings">設定</button>
@@ -299,6 +301,7 @@
     <select id="gAcct" title="帳戶"></select>
     <button class="btn sm syncb" id="syncB" style="display:none" title=""></button>
     <button class="btn sm" id="btnRefresh" title="重新讀取資料與現價">↻</button>
+    <button class="btn sm" id="gLang" title="Switch to English" data-no-i18n>EN</button>
   </div>
 </header>
 <div class="loading" id="loading"></div>
@@ -321,7 +324,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.10';
+const APP_UI_VER = '3.11';
 const SELF_URL = '__SELF_URL__';   // 由伺服器塞入（Apps Script 版）
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
@@ -358,7 +361,8 @@ const A = {
   s: null, view: 'overview', acct: '', asset: null,
   of: { asset: '全部', side: '全部', st: { '規劃': 1, '已掛單': 1, '已成交': 1, '暫停': 1 }, hint: '', q: '' },
   sel: new Set(), collapsed: {}, tf: { asset: '全部', side: '全部' }, rf: { asset: '', side: '全部', year: '', pending: false }, rsel: new Set(), scen: {}, sim: null, am: {},
-  raw: null, ccy: (() => { try { return localStorage.getItem('ccy') || '原幣'; } catch (e) { return '原幣'; } })(), totCcy: 'USD'
+  raw: null, ccy: (() => { try { return localStorage.getItem('ccy') || '原幣'; } catch (e) { return '原幣'; } })(), totCcy: 'USD',
+  lang: (() => { try { return localStorage.getItem('ladder.lang') || 'zh'; } catch (e) { return 'zh'; } })()
 };
 const $ = id => document.getElementById(id);
 const view = () => $('view');
@@ -990,7 +994,7 @@ function vOverview() {
     ${(() => { const dl = doneList(); if (!dl.length) return ''; const by = doneTotal(dl); let tot = 0, ok = true; Object.keys(by).forEach(c => { const v = fxConv(by[c], c, A.totCcy); if (v === null) ok = false; else tot += v; }); return kpi('歷史已結束項目', ok ? fusd(tot) : esc(doneTotalText(dl)), `${dl.length} 項 · 已實現，不再交易`); })()}</div>`;
   // 這個帳戶沒有持倉設定、也沒有任何掛單的資產不顯示
   const shown = s.assets.filter(a => acctUses(a.name));
-  if (!shown.length) h += `<div class="card empty">帳戶「${esc(A.acct)}」還沒有任何資產的持倉或掛單。<br>可以到「掛單簿 → ＋ 新增掛單」、「模擬器」安排掛單，或到「設定 → 持倉」填入持倉。</div>`;
+  if (!shown.length) h += `<div class="card empty">帳戶「${esc(A.acct)}」還沒有任何資產的持倉或掛單。<br>可以到「掛單簿 → ＋ 新增掛單」、「掛單情境模擬」安排掛單，或到「設定 → 持倉」填入持倉。</div>`;
   h += '<div class="acards">';
   shown.forEach(a => {
     const sS = sideStats(a.name, '賣'), sB = sideStats(a.name, '買');
@@ -1032,7 +1036,7 @@ function vAsset() {
     <div class="chips" style="margin-bottom:12px">${s.assets.map(x => `<button class="chipbtn ${x.name === n ? 'on' : ''}" data-act="pickAsset" data-asset="${esc(x.name)}">${logo(x.name, 16)}${esc(x.name)}</button>`).join('')}</div>`;
   const kvS = st => `${fq(st.q, n)}<small>${st.n} 張</small>`;
   h += `<div class="grid g3">
-    <div class="card"><h2>賣單（越漲越賣）<span class="sp"></span><button class="btn sm" data-act="simGo" data-side="賣">用模擬器推演</button></h2>
+    <div class="card"><h2>賣單（越漲越賣）<span class="sp"></span><button class="btn sm" data-act="simGo" data-side="賣">情境模擬</button></h2>
       <div class="kv"><span>計畫總量</span><b>${fq(sS.totQ, n)}</b>
       <span>完成度</span><b>${sS.totQ ? fpct(sS[ST.FILLED].q / sS.totQ, false) : '—'}</b>
       <span><i class="sw" style="background:var(--filled)"></i>已成交</span><b>${kvS(sS[ST.FILLED])}</b>
@@ -1042,7 +1046,7 @@ function vAsset() {
       <span>已兌現</span><b>${fusd(sS.tV, n)}<small>均價 ${sS.tQ ? fp(sS.tV / sS.tQ, n) : '—'}</small></b>
       <span>未成交價值</span><b>${fusd(sS.openV, n)}<small>均價 ${sS.openQ ? fp(sS.openV / sS.openQ, n) : '—'}</small></b>
       <span>下一個賣價</span><b>${sS.next ? fp(sS.next, n) + `<small>${fpct(sS.next / a.price - 1)}</small>` : '—'}</b></div></div>
-    <div class="card"><h2>買單（越跌越買）<span class="sp"></span><button class="btn sm" data-act="simGo" data-side="買">用模擬器推演</button></h2>
+    <div class="card"><h2>買單（越跌越買）<span class="sp"></span><button class="btn sm" data-act="simGo" data-side="買">情境模擬</button></h2>
       <div class="kv"><span>計畫總量</span><b>${fq(sB.totQ, n)}</b>
       <span>完成度</span><b>${sB.totQ ? fpct(sB[ST.FILLED].q / sB.totQ, false) : '—'}</b>
       <span><i class="sw" style="background:var(--filled)"></i>已成交</span><b>${kvS(sB[ST.FILLED])}</b>
@@ -1288,7 +1292,7 @@ function vOrders() {
     h += `<tr class="grp"><td class="c"><input type="checkbox" data-act="selGrp" data-k="${esc(g.k)}" ${g.os.every(o => A.sel.has(o.id)) ? 'checked' : ''}></td>
       <td colspan="10"><span class="tlink" data-act="toggleGrp" data-k="${esc(g.k)}">${coll ? '▸' : '▾'} ${logo(n, 18)} ${esc(n)} · ${g.side}單</span>
       <span class="gs">${all.length} 張：已成交 ${c(ST.FILLED).length} · 已掛單 ${c(ST.PLACED).length} · 規劃 ${c(ST.PLAN).length}${c(ST.PAUSED).length ? ' · 暫停 ' + c(ST.PAUSED).length : ''}　未成交 ${fq(openQ, n)} ${esc(unitOf(n))}（${fusd(openV, n)}）</span>
-      <span class="tlink small" style="margin-left:10px" data-act="simGo2" data-acct="${esc(g.acct)}" data-asset="${esc(n)}" data-side="${g.side}">用模擬器推演 →</span></td></tr>`;
+      <span class="tlink small" style="margin-left:10px" data-act="simGo2" data-acct="${esc(g.acct)}" data-asset="${esc(n)}" data-side="${g.side}">情境模擬 →</span></td></tr>`;
     if (coll) return;
     g.os.forEach(o => {
       h += `<tr class="${RCLS[o.status]} ${A.sel.has(o.id) ? 'sel' : ''}"><td class="c"><input type="checkbox" data-act="sel" data-id="${esc(o.id)}" ${A.sel.has(o.id) ? 'checked' : ''}></td>
@@ -1385,7 +1389,7 @@ function openAddOrder() {
     <label>設定價格（<span id="nCcy"></span>）<input type="number" step="any" id="nP"></label>
     <label>數量<input type="number" step="any" id="nQ"></label>
     <label class="full">備註<input type="text" id="nN"></label></div>
-    <p class="small muted">要一次產生整組階梯，請用「模擬器」。</p>
+    <p class="small muted">要一次產生整組階梯，請用「掛單情境模擬」。</p>
     <div class="foot"><button class="btn" data-m="close">取消</button><button class="btn primary" data-m="ok">新增</button></div>`, act => {
     if (act !== 'ok') return;
     const p = { acct: $('nAc').value, asset: $('nAs').value, side: $('nSd').value, status: $('nSt').value, price: $('nP').value, base: $('nQ').value, note: $('nN').value };
@@ -1491,7 +1495,7 @@ function vSim() {
   const s = A.s;
   if (!A.sim) { A.sim = { acct: A.acct, asset: A.asset, side: '賣' }; simLoad(); }
   const S = A.sim;
-  view().innerHTML = `<h1>模擬器 <small>推演一組新的階梯掛單；既有的掛單不會被改動</small></h1>
+  view().innerHTML = `<h1>掛單情境模擬 <small>推演一組新的階梯掛單；既有的掛單不會被改動</small></h1>
   <div class="filters">
     <div class="chips" id="smAssets">${s.assets.map(a => `<button class="chipbtn ${a.name === S.asset ? 'on' : ''}" data-a="${esc(a.name)}">${logo(a.name, 16)}${esc(a.name)}</button>`).join('')}</div>
     <div class="seg" id="smSide"><button data-v="賣" class="${S.side === '賣' ? 'on' : ''}">賣出計畫</button><button data-v="買" class="${S.side === '買' ? 'on' : ''}">買入計畫</button></div>
@@ -2571,6 +2575,816 @@ document.addEventListener('click', e => { if (!e.target.closest('#pop') && !e.ta
 
 // ═════════════ 事件 ═════════════
 $('nav').addEventListener('click', e => { const b = e.target.closest('button'); if (b) go(b.dataset.v); });
+// ═════════════ 中英切換（DOM 層翻譯；資料與程式邏輯全部維持中文）═════════════
+// 做法：介面一律先以中文產生，切到 English 時由 MutationObserver 把畫面上的文字節點、title、placeholder 翻成英文。
+// 三層：整句對照（I18N_EXACT）→ 含數字的樣板（I18N_RULES）→ 詞彙逐段替換（I18N_WORDS，最長優先）。
+// <option> 沒有 value 屬性時會先把原中文寫進 value，確保程式讀到的值不變。
+const I18N_EXACT = {};
+`資產買賣紀錄與掛單規劃本⇒Asset Trade & Ladder Planner
+總覽⇒Overview
+掛單情境模擬⇒Ladder Simulator
+掛單簿⇒Order Book
+掛單成交狀態⇒Ladder Fills
+真實交易紀錄⇒Trade Ledger
+設定⇒Settings
+計價幣別⇒Currency
+原幣⇒Native
+人民幣⇒CNY
+台幣⇒TWD
+港幣⇒HKD
+美元⇒USD
+帳戶⇒Account
+重新讀取資料與現價⇒Reload data & prices
+沒有需要處理的提醒⇒No alerts right now
+持倉總價值⇒Total holdings value
+到「設定 → 持倉」填入持倉量⇒Enter holdings under Settings → Holdings
+掛單已賣出⇒Ladder sold
+當前掛單計畫 · 已成交⇒Current ladder plan · filled
+掛單已買入⇒Ladder bought
+掛單待賣⇒Ladder to sell
+當前掛單計畫 · 已掛單＋規劃⇒Current ladder plan · placed + planned
+掛單待買⇒Ladder to buy
+歷史已結束項目⇒Closed projects (history)
+持倉⇒Holdings
+未設定⇒Not set
+未填⇒Not filled
+無⇒None
+賣單完成⇒Sell ladder done
+下一個賣價⇒Next sell
+下一個買價⇒Next buy
+當前掛單已兌現／未成交賣單⇒Current ladder realized / open sells
+當前買單已成交／未成交⇒Current buys filled / open
+已成交⇒Filled
+已掛單⇒Placed
+規劃⇒Planned
+規劃中⇒Planned
+暫停⇒Paused
+（長條 = 賣單數量占比）⇒(bar = share of sell quantity)
+← 總覽⇒← Overview
+🤖 AI 診斷⇒🤖 AI Review
+AI 診斷⇒AI Review
+賣單（越漲越賣）⇒Sell orders (sell more as it rises)
+買單（越跌越買）⇒Buy orders (buy more as it falls)
+情境模擬⇒Simulate
+情境模擬 →⇒Simulate →
+計畫總量⇒Plan total
+完成度⇒Progress
+已兌現⇒Realized
+已花費⇒Spent
+未成交價值⇒Open value
+未成交所需資金⇒Cash needed for open buys
+持倉價值⇒Holdings value
+未成交賣單 ÷ 持倉⇒Open sells ÷ holdings
+賣單全成交後⇒After all sells fill
+買賣單全成交後⇒After all buys & sells fill
+到「設定 → 持倉」填入目前持倉量，就能算占比與情境後持倉。⇒Enter your current holdings under Settings → Holdings to see shares and post-scenario holdings.
+賣單階梯⇒Sell ladder
+買單階梯⇒Buy ladder
+上：每個價位數量 下：累計兌現⇒Top: quantity per level · Bottom: cumulative realized
+上：每個價位數量 下：累計花費⇒Top: quantity per level · Bottom: cumulative spent
+上：每張數量 下：累計兌現⇒Top: quantity per order · Bottom: cumulative realized
+賣單狀態比例⇒Sell order status
+買單狀態比例⇒Buy order status
+依數量⇒by quantity
+情境價格⇒Scenario price
+輸入價格⇒Enter price
+拖曳滑桿或輸入價格：漲上去看賣單會成交多少，跌下來看買單會成交多少。⇒Drag the slider or type a price: see how many sells fill on the way up, and how many buys fill on the way down.
+賣單⇒Sell orders
+買單⇒Buy orders
+價格由低到高⇒price low → high
+價格由高到低⇒price high → low
+價格⇒Price
+距現價⇒vs. now
+數量⇒Qty
+價值⇒Value
+狀態⇒Status
+提示⇒Hint
+備註⇒Note
+推演一組新的階梯掛單；既有的掛單不會被改動⇒Model a new ladder; existing orders are not changed
+賣出計畫⇒Sell plan
+買入計畫⇒Buy plan
+安排為新掛單…⇒Add as new orders…
+價格區間⇒Price range
+從（最低價）⇒From (lowest)
+到（最高價）⇒To (highest)
+從（最高價）⇒From (highest)
+到（最低價）⇒To (lowest)
+掛幾張⇒Number of orders
+間距⇒Spacing
+等距⇒Linear
+等比⇒Geometric
+每張相差約⇒Step ≈
+總量⇒Total
+金額⇒Amount
+持倉 %⇒Holdings %
+持倉%⇒Holdings %
+總數量⇒Total quantity
+總金額⇒Total amount
+分配：越漲賣越多⇒Allocation: sell more as price rises
+分配：越跌買越多⇒Allocation: buy more as price falls
+最後一張是第一張的⇒Last ÷ first
+倍⇒×
+平均⇒Average
+第一張⇒First
+→ 最後一張⇒→ last
+小於 1 倍 = 越接近現價賣越多⇒Below 1× = sell more near the current price
+越接近現價買越多⇒buy more near the current price
+推演⇒Run
+↺ 恢復成依目前掛單估算的值⇒↺ Reset to values estimated from current orders
+總共賣出⇒Total sold
+總共買入⇒Total bought
+全部成交可兌現⇒Realized if all fill
+全部成交需要資金⇒Cash needed if all fill
+平均價格⇒Average price
+占持倉⇒Share of holdings
+到「設定 → 持倉」填入⇒Enter under Settings → Holdings
+模擬的新掛單⇒Simulated new orders
+推演：漲到⇒Scenario: rises to
+推演：跌到⇒Scenario: falls to
+漲幅⇒Rise
+跌幅⇒Drop
+成交張數⇒Orders filled
+累計賣出⇒Cumulative sold
+累計買入⇒Cumulative bought
+兌現金額⇒Realized
+花費金額⇒Spent
+均價⇒Avg price
+剩餘持倉⇒Remaining
+買後持倉⇒Holdings after
+買完後持倉⇒Holdings after buys
+持倉價值＋兌現⇒Holdings value + realized
+只算模擬的新掛單。設定持倉後可以看到剩餘持倉與總價值。⇒Simulated new orders only. Set holdings to see remaining holdings and total value.
+只算模擬的新掛單。⇒Simulated new orders only.
+設定持倉後可以看到剩餘持倉與總價值。⇒Set holdings to see remaining holdings and total value.
+含既有未成交掛單。⇒Includes existing open orders.
+沒有新的單會成交。⇒No new orders would fill.
+每一張的明細⇒Per-order detail
+累計金額⇒Cumulative amount
+累計均價⇒Cumulative avg
+累計兌現⇒Cumulative realized
+累計花費⇒Cumulative spent
+⬇ 匯出 PDF⇒⬇ Export PDF
+匯出 PDF⇒Export PDF
+＋ 新增掛單⇒＋ New order
+全部資產⇒All assets
+買＋賣⇒Buy + sell
+全部提示⇒All hints
+全部狀態⇒All statuses
+全部年份⇒All years
+全部⇒All
+❗ 已穿越，確認成交⇒❗ Crossed — confirm fill
+⚠ 在現價另一側⇒⚠ Wrong side of price
+⚡ 接近現價，可掛⇒⚡ Near price — place it
+搜尋 ID／價格／備註⇒Search ID / price / note
+編輯⇒Edit
+刪除⇒Delete
+複製⇒Copy
+切換⇒Switch
+取消⇒Cancel
+儲存⇒Save
+更新⇒Update
+新增⇒Add
+匯入⇒Import
+確認⇒Confirm
+關閉⇒Close
+重試⇒Retry
+清除⇒Clear
+解鎖⇒Unlock
+鎖上⇒Lock
+移除⇒Remove
+模擬⇒Simulate
+＋ 新增⇒＋ Add
+＋ 新增成交⇒＋ Record fill
+掛單簿裡的單登記為「已成交」時的紀錄，用來計算階梯計畫的完成度與兌現。實際的買賣帳請看「真實交易紀錄」。⇒Fills recorded when an order in the Order Book is marked "Filled"; used for ladder progress and realized amounts. For your actual trades see the Trade Ledger.
+賣出⇒Sell
+買入⇒Buy
+賣⇒Sell
+買⇒Buy
+賣出均價⇒Avg sell price
+買入均價⇒Avg buy price
+成交時間⇒Fill time
+資產⇒Asset
+方向⇒Side
+成交價⇒Fill price
+手續費⇒Fee
+交易所⇒Exchange
+對應掛單⇒Order
+2026 以前⇒Before 2026
+原表匯入（2026 以前）⇒Imported from old sheet (before 2026)
+（空白 = 2026 以前）⇒(blank = before 2026)
+⇪ 匯入⇒⇪ Import
+＋ 新增交易⇒＋ New trade
+這裡是你實際成交的買賣（含掛單以外的交易，例如市價單、定投、轉帳換幣）。掛單簿裡「已掛單」的單登記成交時，會自動寫進來並標示⇒Your actual trades (including ones outside the ladder: market orders, DCA, transfers/swaps). When a "Placed" order in the Order Book is marked filled, it is written here automatically and flagged 
+待確認⇒Pending
+；其他紀錄都由你自己新增或修改。⇒; everything else you add or edit yourself.
+只看待確認⇒Pending only
+淨部位⇒Net position
+法幣淨投入⇒Net fiat invested
+用錢買 − 賣成錢；幣幣交換、轉帳不算⇒Bought with cash − sold for cash; swaps and transfers excluded
+已全部回本⇒Fully recovered
+剩餘部位每單位成本⇒Cost per unit of remaining position
+設定的持倉⇒Holdings setting
+讓持倉跟隨真實交易紀錄⇒Follow the trade ledger
+依真實交易⇒from trade ledger
+還沒有真實交易紀錄。按「⇪ 匯入」可以一次貼上多筆，或「＋ 新增交易」逐筆輸入。⇒No trades yet. Use "⇪ Import" to paste many at once, or "＋ New trade" to enter one by one.
+▸ 已結束項目⇒▸ Closed projects
+▾ 已結束項目⇒▾ Closed projects
+已經結束、不會再交易的項目，只記最後實現了多少。不算進上面的任何資產。⇒Projects that are closed and will not be traded again; only the final realized amount is kept. Not counted in any asset above.
+還沒有項目⇒No projects yet
+新增已結束項目⇒Add closed project
+編輯已結束項目⇒Edit closed project
+項目名稱⇒Project name
+例如 Pionex、ENS 空投⇒e.g. Pionex, ENS airdrop
+已實現金額（可為負）⇒Realized amount (can be negative)
+已實現金額⇒Realized amount
+幣別⇒Currency
+年份／期間（選填）⇒Year / period (optional)
+2021 或 2019–2021⇒2021 or 2019–2021
+備註（選填）⇒Note (optional)
+項目⇒Project
+名稱⇒Name
+掛單⇒Orders
+掛單成交⇒Fills
+真實交易⇒Trades
+持倉列⇒Holding rows
+密碼⇒Password
+目前⇒Current
+設密碼⇒Password
+改名⇒Rename
+新帳戶名稱⇒New account name
+＋ 新增帳戶⇒＋ Add account
+策略筆記⇒Strategy notes
+寫下這個帳戶的策略、目標…⇒Write this account's strategy and goals…
+儲存筆記⇒Save notes
+備註已儲存⇒Notes saved
+每個資產可選「手動」或「跟隨真實交易紀錄」⇒Each asset can be "Manual" or "Follow trade ledger"
+手動⇒Manual
+跟隨真實交易紀錄⇒Follow trade ledger
+跟隨真實交易⇒Follow ledger
+：在「基準持倉量」填你在交易所看到的實際數量（按 Enter 或離開欄位就會儲存，基準時間＝現在），之後登記的掛單成交買入會加、賣出會減。⇒: enter the actual quantity you see at the exchange in "Base quantity" (saved on Enter or when leaving the field; base time = now). Ladder fills recorded afterwards add (buys) or subtract (sells).
+：持倉 = 真實交易紀錄的買入總量 − 賣出總量，不用手動維護。2026 以前的原表成交（沒有日期）不會影響持倉。⇒: holdings = total bought − total sold in the trade ledger, no manual upkeep. Undated fills imported from the old sheet (before 2026) do not affect holdings.
+模式⇒Mode
+基準持倉量⇒Base quantity
+基準時間⇒Base time
+之後買入⇒Bought since
+之後賣出⇒Sold since
+現價⇒Price
+未成交賣單⇒Open sells
+未成交買單⇒Open buys
+未成交⇒Open
+全部成交後⇒After all fill
+填入持倉⇒Set holdings
+新增持倉列⇒Add holding row
+持倉量（跟隨模式可留空）⇒Quantity (leave blank in follow mode)
+一般⇒General
+提醒門檻（距現價 ±%）⇒Alert threshold (± % from price)
+預設手續費率（%）⇒Default fee rate (%)
+預設交易所⇒Default exchange
+手續費率（%）⇒Fee rate (%)
+資產頁的「🤖 AI 診斷」會把⇒"🤖 AI Review" on an asset page sends 
+目前帳戶、該資產⇒the current account's data for that asset
+的掛單、持倉、成交摘要與策略筆記送到 Anthropic 的 Claude，搭配網路搜尋最近的市場、總經與科技消息，產生判斷與建議。需要你自己的 Anthropic API Key（在 Claude Console 建立，依用量計費）。⇒— orders, holdings, fill summary and strategy notes — to Anthropic's Claude, together with a web search of recent market, macro and tech news, to produce an assessment and suggestions. Requires your own Anthropic API key (created in the Claude Console, billed by usage).
+Key 只存在這份腳本的「使用者屬性」裡（你的 Google 帳號專屬，不在試算表裡），儲存後不會再顯示完整內容。⇒The key is stored only in this script's user properties (tied to your Google account, not in the spreadsheet) and is never shown in full after saving.
+尚未設定⇒Not set yet
+模型⇒Model
+Claude Sonnet 5.5（速度與品質平衡，建議）⇒Claude Sonnet 5.5 (balanced, recommended)
+Claude Opus 5.5（分析較深入，較慢較貴）⇒Claude Opus 5.5 (deeper, slower, pricier)
+Claude Haiku 5.5（最快最便宜）⇒Claude Haiku 5.5 (fastest, cheapest)
+網路搜尋⇒Web search
+開（搜尋最新消息，最多 3 次）⇒On (search latest news, up to 3 times)
+關（只看你的資料，較快）⇒Off (your data only, faster)
+開⇒On
+關⇒Off
+儲存 AI 設定⇒Save AI settings
+移除 Key⇒Remove key
+移除 API Key⇒Remove API key
+已移除 API Key⇒API key removed
+已儲存 AI 設定⇒AI settings saved
+已儲存 API Key 與 AI 設定⇒API key and AI settings saved
+移除後就不能使用 AI 診斷，直到重新填入。過去的診斷紀錄會保留。⇒AI Review will be unavailable until a key is entered again. Past reviews are kept.
+要更換才需要重新貼上⇒Paste again only to replace it
+資產與現價⇒Assets & prices
+↻ 更新現價⇒↻ Refresh prices
+已更新現價⇒Prices refreshed
+已更新資料與現價⇒Data and prices refreshed
+現價優先順序：手動價格 ＞ CoinGecko（約 3 分鐘更新）＞ GOOGLEFINANCE。CoinGecko ID 例如 bitcoin、ethereum、cardano、solana；美股用 GOOGLEFINANCE 代碼，例如 NASDAQ:MSTR；也可以寫運算式，例如 GOOGLEFINANCE("TPE:2330")*1000（以「張」計價）。⇒Price priority: manual price > CoinGecko (updates ~every 3 min) > GOOGLEFINANCE. CoinGecko IDs e.g. bitcoin, ethereum, cardano, solana; US stocks use GOOGLEFINANCE tickers such as NASDAQ:MSTR; expressions also work, e.g. GOOGLEFINANCE("TPE:2330")*1000 (priced per lot of 1000 shares).
+GOOGLEFINANCE 代碼⇒GOOGLEFINANCE ticker
+手動價格⇒Manual price
+數量小數位⇒Qty decimals
+價格小數位⇒Price decimals
+數量單位⇒Unit
+圖示網址（選填）⇒Icon URL (optional)
+目前現價⇒Current price
+已有掛單或成交紀錄，不能改計價幣別⇒Has orders or fills; currency cannot be changed
+＋ 新增資產⇒＋ Add asset
+儲存資產設定⇒Save assets
+資產設定已儲存⇒Assets saved
+新增掛單⇒New order
+要一次產生整組階梯，請用「掛單情境模擬」。⇒To create a whole ladder at once, use the Ladder Simulator.
+匯出掛單簿 PDF⇒Export Order Book as PDF
+會依目前畫面的篩選條件匯出⇒Exports with the current filters:
+標題⇒Title
+包含備註欄⇒Include note column
+用瀏覽器的列印視窗，目的地選「另存為 PDF」⇒Use the browser print dialog and choose "Save as PDF"
+用列印存成 PDF⇒Print to PDF
+下載 PDF⇒Download PDF
+目前篩選沒有掛單可以匯出⇒No orders match the current filter
+PDF 元件載入失敗⇒PDF library failed to load
+PDF 元件載入失敗（網路）⇒PDF library failed to load (network)
+新增真實交易⇒New trade
+編輯交易⇒Edit trade
+刪除交易⇒Delete trade
+實際在交易所或券商成交的買賣。價格與手續費用該資產的計價幣別。⇒A trade actually executed at an exchange or broker. Price and fee are in the asset's native currency.
+時間⇒Time
+轉入／轉出可填 0⇒Transfers may use 0
+價格與手續費的幣別⇒Currency of price and fee
+類型⇒Kind
+法幣（用錢買賣）⇒Fiat (bought/sold with cash)
+幣幣（用別的幣換，不算投入）⇒Swap (paid with another coin; not an investment)
+轉帳（送出／收到）⇒Transfer (sent / received)
+法幣⇒Fiat
+幣幣⇒Swap
+轉帳⇒Transfer
+轉帳，沒有買賣⇒Transfer, no trade
+用別的幣換的，不算法幣投入⇒Paid with another coin; not fiat investment
+交易所／券商⇒Exchange / broker
+匯入真實交易紀錄⇒Import trades
+把紀錄貼到下面，每行一筆，欄位用 Tab（從 Excel／試算表直接複製）或逗號分隔：⇒Paste records below, one per line, fields separated by Tab (copied from Excel / Sheets) or commas:
+日期 資產 方向(買/賣) 價格 數量 [手續費] [交易所] [備註]⇒date asset side(買/賣) price qty [fee] [exchange] [note]
+例：⇒e.g.
+2024-05-20 14:30, BTC, 買, 68500, 0.05, 3.4, Binance, 定投⇒2024-05-20 14:30, BTC, 買, 68500, 0.05, 3.4, Binance, DCA
+。全部會記在帳戶⇒. All go under account
+下。⇒.
+這批紀錄的價格幣別⇒Price currency of this batch
+各資產的計價幣別⇒Each asset's native currency
+各資產原幣⇒Native per asset
+USD（美元）⇒USD (US dollar)
+TWD（台幣）⇒TWD (Taiwan dollar)
+CNY（人民幣）⇒CNY (yuan)
+HKD（港幣）⇒HKD (Hong Kong dollar)
+方向要是 買／賣⇒Side must be 買 or 賣
+欄位不足（至少：日期 資產 方向 價格 數量）⇒Not enough fields (at least: date asset side price qty)
+日期看不懂（請用 2024-05-20 或 2024-05-20 14:30）⇒Unrecognized date (use 2024-05-20 or 2024-05-20 14:30)
+沒有可以匯入的資料（請檢查資產名稱、方向、價格與數量）⇒Nothing to import (check asset name, side, price and quantity)
+，基準時間＝現在。⇒, base time = now.
+設了密碼之後，切換到這個帳戶時要先輸入密碼才能看到資料與操作。這是一道隱私鎖，用來區隔家人各自的帳戶；有技術能力的人仍可能繞過，請不要把它當成銀行等級的保護。⇒Once set, switching to this account requires the password before data is shown. It is a privacy lock to separate family members' accounts; a technically skilled person could still bypass it, so do not treat it as bank-grade protection.
+新密碼（至少 4 個字）⇒New password (at least 4 characters)
+再輸入一次⇒Repeat password
+目前的密碼⇒Current password
+更改／移除⇒Change / remove
+移除密碼⇒Remove password
+密碼已設定⇒Password set
+密碼已移除⇒Password removed
+密碼不正確⇒Wrong password
+密碼至少 4 個字⇒Password must be at least 4 characters
+兩次輸入的密碼不一樣⇒Passwords do not match
+請輸入目前的密碼⇒Enter the current password
+請先切換到該帳戶並輸入密碼⇒Switch to that account and enter its password first
+🔓 已解鎖⇒🔓 Unlocked
+請輸入帳戶名稱⇒Enter an account name
+帳戶名稱不能空白⇒Account name cannot be blank
+帳戶名稱最多 20 個字⇒Account name: 20 characters max
+帳戶改名⇒Rename account
+新名稱⇒New name
+<b>改名後密碼會被清除</b>，請重新設定。⇒<b>The password is cleared on rename</b>; set it again afterwards.
+會一併⇒This also
+永久刪除⇒permanently deletes
+這個帳戶的：⇒everything in this account:
+⚠ 刪除後無法復原。如果只是不想看到，可以不要切換到這個帳戶。⇒⚠ This cannot be undone. If you just don't want to see it, simply don't switch to this account.
+刪除帳戶⇒Delete account
+已新增⇒Added
+已刪除⇒Deleted
+已儲存⇒Saved
+已確認⇒Confirmed
+已複製⇒Copied
+新增掛單成交⇒Record ladder fill
+編輯掛單成交⇒Edit ladder fill
+刪除掛單成交⇒Delete ladder fill
+這裡只記掛單計畫的成交。不在掛單簿裡的實際交易（市價單、定投…）請記在「真實交易紀錄」。⇒Only ladder-plan fills go here. Actual trades outside the Order Book (market orders, DCA…) belong in the Trade Ledger.
+成交數量⇒Fill qty
+成交紀錄⇒Fills
+前往設定⇒Go to Settings
+登記成交…⇒Record fill…
+登記成交⇒Record fill
+複製為新規劃單⇒Copy as new planned order
+已複製為新規劃單⇒Copied as a new planned order
+改回規劃⇒Back to planned
+選取的單都已經是已成交⇒All selected orders are already filled
+已成交單的成交紀錄會保留。刪除後無法復原。⇒Fill records of filled orders are kept. This cannot be undone.
+刪除後無法復原。⇒This cannot be undone.
+刪除掛單⇒Delete orders
+取消選取⇒Clear selection
+套用到掛單簿⇒Apply to Order Book
+新掛單的狀態⇒Status of new orders
+請先選擇套用方式⇒Choose how to apply first
+請填價格區間⇒Enter a price range
+請填價格與數量⇒Enter price and quantity
+請填成交價與數量⇒Enter fill price and quantity
+請填項目名稱與金額⇒Enter project name and amount
+請填帳戶、項目名稱與金額⇒Enter account, project name and amount
+請填帳戶、資產、方向與價格⇒Enter account, asset, side and price
+請填帳戶、資產、方向、價格、數量⇒Enter account, asset, side, price and quantity
+請填帳戶、資產、方向、成交價、數量⇒Enter account, asset, side, fill price and quantity
+請填價格（可為 0）與數量⇒Enter price (0 allowed) and quantity
+價格要大於 0⇒Price must be greater than 0
+價格要 ≥ 0、數量要 > 0⇒Price must be ≥ 0 and quantity > 0
+請選帳戶與資產⇒Choose an account and asset
+缺少帳戶／資產／方向⇒Missing account / asset / side
+先設定價格區間與總量⇒Set the price range and total first
+沒有新增任何掛單（價位可能都重複了）⇒No orders added (all price levels may already exist)
+沒有可以登記的單（可能都已經是已成交）⇒Nothing to record (all may already be filled)
+找不到掛單⇒Order not found
+找不到帳戶⇒Account not found
+找不到項目⇒Project not found
+找不到交易紀錄⇒Trade not found
+找不到成交紀錄⇒Fill not found
+狀態不正確：⇒Invalid status:
+改狀態，保留紀錄⇒Change status, keep records
+改狀態並刪除紀錄⇒Change status and delete records
+這張單有成交紀錄，紀錄會保留在「成交紀錄」。⇒This order has fill records; they will be kept under Fills.
+原本「已掛單」的單會同時自動寫進「真實交易紀錄」並標示待確認。⇒Orders that were "Placed" are also written to the Trade Ledger automatically and flagged pending.
+成交自動寫入，請確認價格與數量⇒Written automatically from a fill — please confirm price and quantity
+，儲存後視同已確認⇒; saving marks it confirmed
+（對應的掛單成交紀錄已刪除）⇒(the matching ladder fill was deleted)
+自動寫入、尚未確認的真實交易也會一起移除。⇒Auto-written, unconfirmed ledger trades are removed too.
+持倉已更新⇒Holdings updated
+持倉已儲存，基準時間 = 現在⇒Holdings saved, base time = now
+持倉改為手動⇒Holdings set to manual
+持倉改為跟隨真實交易紀錄⇒Holdings now follow the trade ledger
+這個帳戶還沒設定持倉（到「設定 → 持倉」填入），改用數量或金額。⇒No holdings set for this account (enter under Settings → Holdings); use quantity or amount instead.
+只含已設定持倉的帳戶⇒Accounts with holdings only
+「持倉價值＋兌現」= 剩餘持倉 × 該價格 ＋ 已兌現的現金。⇒"Holdings value + realized" = remaining holdings × that price + cash realized.
+產生新的診斷⇒New review
+產生中…⇒Generating…
+（分析中…）⇒(analyzing…)
+搜尋最新消息⇒Searching latest news
+分析掛單結構⇒Analyzing ladder structure
+市場、情境與建議⇒Market, scenarios & suggestions
+＋網路搜尋⇒+ web search
+⚠ AI 診斷失敗：⇒⚠ AI Review failed:
+策略筆記（目前是空的）⇒Strategy notes (empty)
+抓不到歷史價格⇒Could not fetch price history
+正在抓歷史價格…⇒Fetching price history…
+沒有價格⇒No price
+沒有可以畫的資料⇒Nothing to chart
+只畫⇒Only
+線性刻度⇒linear scale
+對數刻度⇒log scale
+市值⇒Market value
+來源⇒Source
+由掛單⇒from order
+複製自⇒copied from
+入／出⇒In / out
+年份⇒Year
+年⇒year
+單⇒order
+沒有單⇒No orders
+沒有賣單⇒No sell orders
+沒有符合的掛單⇒No matching orders
+沒有符合篩選的紀錄⇒No records match the filter
+還沒有掛單成交紀錄⇒No ladder fills yet
+還沒有持倉資料⇒No holdings yet
+還沒有資產，請到「設定」新增。⇒No assets yet; add them under Settings.
+價位沒有重複。⇒No duplicate price levels.
+試算表還沒初始化⇒Spreadsheet not initialized
+建立並匯入⇒Create and import
+✅ 已建立並匯入⇒✅ Created and imported
+同步（手機離線版）⇒Sync (offline app)
+同步金鑰⇒Sync key
+同步失敗⇒Sync failed
+立即同步⇒Sync now
+全部已同步⇒Everything synced
+✅ 已同步⇒✅ Synced
+上次同步⇒Last sync
+離線⇒Offline
+目前離線⇒Offline
+連線中…⇒Connecting…
+連線失敗⇒Connection failed
+連線逾時⇒Connection timed out
+連不到伺服器⇒Cannot reach the server
+連不到試算表⇒Cannot reach the spreadsheet
+伺服器錯誤⇒Server error
+伺服器回應⇒Server response
+伺服器回應格式錯誤⇒Malformed server response
+讀取失敗⇒Load failed
+讀取失敗：⇒Load failed:
+畫面產生失敗：⇒Render failed:
+更改連線設定⇒Change connection
+連線並下載資料⇒Connect and download
+連線到你的試算表⇒Connect to your spreadsheet
+還沒設定同步網址⇒Sync URL not set
+請貼上完整的同步金鑰⇒Paste the full sync key
+同步金鑰不正確或已更換，請重新輸入。⇒Sync key is wrong or was changed; enter it again.
+同步網址不對，或部署的存取權不是「任何人」⇒Wrong sync URL, or the deployment is not set to "Anyone"
+清除這台裝置的資料⇒Clear this device's data
+會清除這台裝置上的資料快取與連線設定（網址、金鑰）。試算表裡的資料不受影響。⇒Clears the cached data and connection settings (URL, key) on this device. The spreadsheet is not affected.
+有一筆變更⇒1 change
+筆變更⇒changes
+稍後自動送出；點一下立即同步⇒Will be sent automatically; tap to sync now
+，有網路時會自動送出；點一下立即重試⇒; sent automatically when online — tap to retry now
+正在把變更送到試算表⇒Sending changes to the spreadsheet
+⚠ 還有變更沒送出⇒⚠ Unsent changes
+（先顯示這台裝置上的資料）⇒(showing this device's data first)
+目前顯示的是這台裝置上次的資料⇒Showing this device's last data
+✅ 已連線，資料已存到這台裝置⇒✅ Connected; data saved on this device
+⚠ 這台裝置的儲存空間不足，變更可能沒有保存⇒⚠ This device is low on storage; changes may not be saved
+⚠ 同步金鑰不正確，請到「設定 → 同步」重新設定⇒⚠ Wrong sync key; set it again under Settings → Sync
+伺服器沒有套用（可能在另一台裝置已經改過或刪除）：⇒Not applied by the server (may have been changed or deleted on another device):
+瀏覽器不允許複製，請手動選取文字⇒Browser blocked copying; select the text manually
+抓不到匯率，以原幣顯示⇒Exchange rates unavailable; showing native currency
+⚠ 目前抓不到匯率，暫時以原幣顯示⇒⚠ Exchange rates unavailable; showing native currency for now
+，暫時抓不到新資料，使用上次的匯率⇒; could not fetch new rates, using the last ones
+<b>目前抓不到匯率</b>，切換幣別會暫時以原幣顯示。⇒<b>Exchange rates unavailable</b>; switching currency will show native values for now.
+載入中…⇒Loading…
+載入失敗⇒Load failed
+請把下面這段訊息截圖給我：⇒Please send a screenshot of this message:
+介面有新版⇒New interface version available
+重新載入⇒Reload
+網頁⇒UI
+伺服器⇒server
+（介面與伺服器版本不同，通常幾分鐘內會一致；要立刻更新可在網址後加 &fresh=1 重新整理）⇒(UI and server versions differ; they usually match within minutes. To update now, add &fresh=1 to the URL and reload)
+（伺服器程式還是舊版，請把「任何人」的部署改成新版本）⇒(server code is outdated; update the "Anyone" deployment to the new version)
+全選⇒Select all
+計價幣別：每個資產的價格、掛單與成交都以它的「計價幣別」記錄（加密貨幣通常是 USD）。右上角可以切換用 原幣／USD／人民幣／台幣 顯示：現價與掛單用最新匯率換算，成交紀錄用成交日附近的匯率換算（沒有日期的用最新匯率）。⇒Native currency: each asset's price, orders and fills are recorded in its native currency (usually USD for crypto). The selector at the top right switches the display to Native / USD / CNY / TWD: prices and orders use the latest rate, fills use the rate around the fill date (undated ones use the latest rate).`.split('\n').forEach(l => { const i = l.indexOf('⇒'); if (i > 0) I18N_EXACT[l.slice(0, i).replace(/[\s\u3000]+/g, ' ')] = l.slice(i + 1); });
+
+// 含數字／變數的樣板（先整句比對，不中再試這些）
+const I18N_RULES = [
+  [/^更新 (\d\d:\d\d)$/, 'Updated $1'],
+  [/^帳戶：(.+)$/, 'Account: $1'],
+  [/^(.+) · 現價 (.+)$/, '$1 · price $2'],
+  [/^(.+)｜現價$/, '$1 | price'],
+  [/^(\d+) 張$/, '$1 orders'],
+  [/^(\d+) \/ (\d+) 張$/, '$1 / $2 orders'],
+  [/^(\d+) 筆$/, '$1 records'],
+  [/^(\d+) 項 · 合計 (.+)$/, '$1 projects · total $2'],
+  [/^(\d+) 項$/, '$1 projects'],
+  [/^均價 (.+)$/, 'avg $1'],
+  [/^← 現價 (.+)$/, '← now $1'],
+  [/^距現價 (.+)$/, 'vs. now $1'],
+  [/^市值 (.+)$/, 'Market value $1'],
+  [/^手續費 (.+)$/, 'Fee $1'],
+  [/^(.+) (\d+) 筆 · (.+) 共 (\d+) 筆$/, '$1: $2 records · $3 total $4'],
+  [/^(.+) · 賣單$/, '$1 · Sell'],
+  [/^(.+) · 買單$/, '$1 · Buy'],
+  [/^(\d+) 張：已成交 (\d+) · 已掛單 (\d+) · 規劃 (\d+)(?: · 暫停 (\d+))?(?: 未成交 (.+))?$/, (m, a, b, c, d, e, f) => `${a} orders: filled ${b} · placed ${c} · planned ${d}${e ? ' · paused ' + e : ''}${f ? ' · open ' + f : ''}`],
+  [/^未成交 (.+)$/, 'open $1'],
+  [/^每層數量（(.+)）$/, 'Qty per level ($1)'],
+  [/^累計兌現（(.+)，不含暫停）$/, 'Cumulative realized ($1, excl. paused)'],
+  [/^累計花費（(.+)，不含暫停）$/, 'Cumulative spent ($1, excl. paused)'],
+  [/^把既有未成交的賣單（(.+)）一起算進推演$/, 'Include existing open sells ($1) in the scenario'],
+  [/^把既有未成交的買單（(.+)）一起算進推演$/, 'Include existing open buys ($1) in the scenario'],
+  [/^張未成交(賣|買)單估算，每張數量平均誤差約$/, (m, s) => `open ${s === '賣' ? 'sell' : 'buy'} orders; avg quantity error per order ≈`],
+  [/^預設值依目前$/, 'Defaults estimated from the current'],
+  [/^網頁 v(.+?) · 伺服器 v(.+)$/, 'UI v$1 · server v$2'],
+  [/^網頁 v(.+)$/, 'UI v$1'],
+  [/^(.+) 專屬$/, '$1 only'],
+  [/^設定「(.+)」的密碼$/, 'Set password for "$1"'],
+  [/^刪除帳戶「(.+)」$/, 'Delete account "$1"'],
+  [/^已解鎖「(.+)」$/, 'Unlocked "$1"'],
+  [/^「(.+)」的掛單、掛單成交、真實交易、持倉與筆記都會一起改成新名稱。$/, 'Orders, fills, trades, holdings and notes of "$1" will all be renamed.'],
+  [/^我確認要刪除「(.+)」與上面所有資料$/, 'I confirm deleting "$1" and all data above'],
+  [/^(\d+) 張掛單$/, '$1 orders'],
+  [/^(\d+) 筆掛單成交$/, '$1 ladder fills'],
+  [/^(\d+) 筆真實交易$/, '$1 trades'],
+  [/^(\d+) 個已結束項目$/, '$1 closed projects'],
+  [/^(\d+) 列持倉$/, '$1 holding rows'],
+  [/^(.+) 還有掛單，不能移除$/, '$1 still has orders and cannot be removed'],
+  [/^更新 (.+) 的持倉$/, 'Update $1 holdings'],
+  [/^把「設定 → 持倉」裡 (.+) 的 (.+) 基準持倉設為$/, 'Set the $2 base quantity of $1 under Settings → Holdings to'],
+  [/^只把現在的淨部位 (.+) 填進手動持倉$/, 'Just copy the current net position $1 into manual holdings'],
+  [/^多收回 (.+)，剩餘部位成本 0$/, 'Recovered $1 extra; remaining position costs 0'],
+  [/^編輯掛單成交 (.+)$/, 'Edit ladder fill $1'],
+  [/^對應掛單 (.+)$/, 'Order $1'],
+  [/^已掛單（(.+)）$/, 'Placed ($1)'],
+  [/^已選 (\d+) 張$/, '$1 selected'],
+  [/^刪除 (\d+) 張掛單$/, 'Delete $1 orders'],
+  [/^設定價格（(.*)$/, 'Price ($1'],
+  [/^成交價（(.*)$/, 'Fill price ($1'],
+  [/^手續費（(.*)$/, 'Fee ($1'],
+  [/^數量（(.*)$/, 'Qty ($1'],
+  [/^計價幣別：(.*)目前匯率：(.+)$/, (m, a, b) => I18N_EXACT['計價幣別：' + a.trim()] ? I18N_EXACT['計價幣別：' + a.trim()] + ' Current rates: ' + b : null],
+  [/^張掛單（(.+)），A4 直式，方便分享。要只匯出某個資產或狀態，可以先在掛單簿上方篩選。$/, 'orders ($1), A4 portrait, easy to share. To export only one asset or status, filter the Order Book first.'],
+  [/^(.+)掛單簿$/, '$1 Order Book'],
+  [/^還沒設定 Anthropic API Key。設定後，這裡會把「(.+)」的掛單、持倉、成交與策略筆記交給 Claude 分析，並搜尋最近的市場、總經與科技消息，產生判斷與建議。$/, 'No Anthropic API key yet. Once set, the orders, holdings, fills and strategy notes of "$1" are sent to Claude for analysis, together with a search of recent market, macro and tech news.'],
+  [/^介面有新版（伺服器 v(.+?)，目前介面 v(.+?)）$/, 'New interface version (server v$1, this UI v$2)'],
+  [/^(\d+) 筆變更$/, '$1 changes'],
+  [/^↑(\d+) 待同步$/, '↑$1 to sync'],
+  [/^以 (.+) 計$/, 'in $1'],
+  [/^(.+) 更新$/, 'updated $1'],
+];
+
+// 詞彙逐段替換（最長優先）：給整句與樣板都沒對到的混合字串用
+const I18N_WORDS = {};
+`資產買賣紀錄與掛單規劃本⇒Asset Trade & Ladder Planner
+掛單情境模擬⇒Ladder Simulator
+掛單成交狀態⇒Ladder Fills
+真實交易紀錄⇒Trade Ledger
+歷史已結束項目⇒Closed projects
+已結束項目⇒Closed projects
+掛單簿⇒Order Book
+掛單成交⇒ladder fill
+未成交賣單⇒open sells
+未成交買單⇒open buys
+未成交⇒open
+已成交⇒filled
+已掛單⇒placed
+規劃中⇒planned
+規劃⇒planned
+暫停⇒paused
+賣單⇒sell orders
+買單⇒buy orders
+賣出⇒sold
+買入⇒bought
+持倉價值⇒holdings value
+持倉⇒holdings
+現價⇒price
+均價⇒avg
+總量⇒total
+數量⇒qty
+價格⇒price
+金額⇒amount
+手續費⇒fee
+交易所⇒exchange
+成交價⇒fill price
+成交⇒fill
+帳戶⇒account
+資產⇒asset
+掛單⇒orders
+已兌現⇒realized
+兌現⇒realized
+已花費⇒spent
+累計⇒cumulative
+剩餘⇒remaining
+合計⇒total
+共⇒total
+張⇒orders
+筆⇒records
+項⇒projects
+個⇒
+列⇒rows
+更新⇒updated
+讀取⇒load
+匯率⇒FX rate
+原幣⇒native
+人民幣⇒CNY
+台幣⇒TWD
+港幣⇒HKD
+美元⇒USD
+以前⇒before
+以後⇒after
+之後⇒since
+漲到⇒rises to
+跌到⇒falls to
+漲幅⇒rise
+跌幅⇒drop
+距現價⇒vs. now
+占持倉⇒Share of holdings
+待確認⇒pending
+已確認⇒confirmed
+已儲存⇒saved
+已刪除⇒deleted
+已新增⇒added
+已更新⇒updated
+已移除⇒removed
+已套用⇒applied
+已取代⇒replaced
+已外加⇒added
+已登記⇒recorded
+已同步⇒synced
+已複製⇒copied
+已解鎖⇒unlocked
+已鎖上⇒locked
+已確認⇒confirmed
+已匯入⇒imported
+已送出⇒sent
+已改為⇒set to
+已清除⇒cleared
+已連線⇒connected
+已建立⇒created
+刪除⇒delete
+新增⇒add
+編輯⇒edit
+儲存⇒save
+移除⇒remove
+匯入⇒import
+重新整理⇒reload
+失敗⇒failed
+成功⇒OK
+錯誤⇒error
+密碼⇒password
+網址⇒URL
+金鑰⇒key
+模式⇒mode
+手動⇒manual
+跟隨⇒follow
+請⇒please
+與⇒ &
+和⇒ &
+或⇒ or
+沒有⇒no
+還沒有⇒no
+不能⇒cannot
+無法⇒cannot
+目前⇒current
+最新⇒latest
+上次⇒last
+時間⇒time
+日期⇒date
+年份⇒year
+年⇒
+月⇒
+日⇒
+秒⇒s
+分鐘⇒min
+小時⇒h
+天⇒d
+賣⇒sell
+買⇒buy
+的⇒ `.split('\n').forEach(l => { const i = l.indexOf('⇒'); if (i > 0) I18N_WORDS[l.slice(0, i)] = l.slice(i + 1); });
+const I18N_PUNCT = { '（': ' (', '）': ') ', '：': ': ', '，': ', ', '、': ', ', '／': '/', '「': '"', '」': '"', '＋': '+', '＝': '=', '＞': '>', '；': '; ', '。': '. ', '！': '!', '？': '?' };
+let I18N_WORD_RE = null;
+function i18nWords(t) {
+  if (!I18N_WORD_RE) { const ks = Object.keys(I18N_WORDS).sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); I18N_WORD_RE = new RegExp(ks.join('|'), 'g'); }
+  let r = t.replace(I18N_WORD_RE, m => I18N_WORDS[m]);
+  r = r.replace(/[（）：，、／「」＋＝＞；。！？]/g, c => I18N_PUNCT[c]);
+  return r.replace(/\s{2,}/g, ' ').replace(/\s+([,.;:)])/g, '$1').replace(/\(\s+/g, '(').trim();
+}
+const I18N_CJK = /[\u4e00-\u9fff]/;
+function i18nText(t) {
+  const k = t.replace(/[\s\u3000]+/g, ' ').trim();
+  if (!I18N_CJK.test(k)) return t;
+  const tt = t.replace(/[\s\u3000]+/g, ' ');
+  if (I18N_EXACT[k] !== undefined) return tt.replace(k, I18N_EXACT[k]);
+  for (const r of I18N_RULES) { const m = r[0].exec(k); if (m) { const o = typeof r[1] === 'function' ? r[1].apply(null, m) : k.replace(r[0], r[1]); if (o !== null) return tt.replace(k, I18N_CJK.test(o) || /[（）：，、／「」]/.test(o) ? i18nWords(o) : o); } }
+  return tt.replace(k, i18nWords(k));
+}
+// 同一個中文在不同位置的英文不同：依最近的 data-act 或 id 覆寫
+const I18N_CTX = { 'holdTime': { '設定': 'Set' }, '#gCcy': { '計價幣別': 'Display currency' } };
+function i18nCtx(el, k) {
+  if (!el || !el.closest) return undefined;
+  const a = el.closest('[data-act]'); if (a && I18N_CTX[a.getAttribute('data-act')] && I18N_CTX[a.getAttribute('data-act')][k] !== undefined) return I18N_CTX[a.getAttribute('data-act')][k];
+  if (el.id && I18N_CTX['#' + el.id] && I18N_CTX['#' + el.id][k] !== undefined) return I18N_CTX['#' + el.id][k];
+  return undefined;
+}
+const I18N_ATTRS = ['title', 'placeholder', 'aria-label'];
+function i18nNode(n) {
+  if (n.nodeType === 3) {
+    if (!n.nodeValue || !I18N_CJK.test(n.nodeValue)) return;
+    const p = n.parentNode;
+    if (p && (p.tagName === 'SCRIPT' || p.tagName === 'STYLE' || p.tagName === 'TEXTAREA' || (p.closest && p.closest('[data-no-i18n]')))) return;
+    if (p && p.tagName === 'OPTION' && !p.hasAttribute('value')) p.setAttribute('value', p.value);
+    if (!n.__zh) n.__zh = n.nodeValue;
+    const c = i18nCtx(p, n.__zh.trim());
+    n.nodeValue = c !== undefined ? n.__zh.replace(n.__zh.trim(), c) : i18nText(n.__zh);
+    return;
+  }
+  if (n.nodeType !== 1) return;
+  if (n.tagName === 'SCRIPT' || n.tagName === 'STYLE') return;
+  I18N_ATTRS.forEach(a => { const v = n.getAttribute(a); if (v && I18N_CJK.test(v)) { const zh = n.getAttribute('data-zh-' + a) || v; n.setAttribute('data-zh-' + a, zh); const c = i18nCtx(n, zh.trim()); n.setAttribute(a, c !== undefined ? c : i18nText(zh)); } });
+  n.childNodes.forEach(i18nNode);
+}
+function i18nRestore(n) {
+  if (n.nodeType === 3) { if (n.__zh !== undefined) { n.nodeValue = n.__zh; delete n.__zh; } return; }
+  if (n.nodeType !== 1) return;
+  I18N_ATTRS.forEach(a => { const zh = n.getAttribute('data-zh-' + a); if (zh !== null) { n.setAttribute(a, zh); n.removeAttribute('data-zh-' + a); } });
+  n.childNodes.forEach(i18nRestore);
+}
+let I18N_OBS = null, I18N_PENDING = false;
+function i18nApply() {
+  if (A.lang !== 'en') return;
+  if (I18N_OBS) I18N_OBS.disconnect();
+  i18nNode(document.body);
+  document.title = 'Asset Trade & Ladder Planner';
+  if (I18N_OBS) I18N_OBS.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: I18N_ATTRS });
+}
+function i18nStart() {
+  if (!I18N_OBS) {
+    I18N_OBS = new MutationObserver(muts => {
+      if (A.lang !== 'en') return;
+      // 文字節點被程式改回中文（例如 textContent = …）時，__zh 要重設
+      muts.forEach(m => {
+        if (m.type === 'characterData' && m.target.__zh !== undefined && I18N_CJK.test(m.target.nodeValue)) m.target.__zh = m.target.nodeValue;
+        if (m.type === 'attributes' && m.target.getAttribute && I18N_CJK.test(m.target.getAttribute(m.attributeName) || '')) m.target.removeAttribute('data-zh-' + m.attributeName);
+      });
+      if (I18N_PENDING) return; I18N_PENDING = true;
+      requestAnimationFrame(() => { I18N_PENDING = false; i18nApply(); });
+    });
+  }
+  i18nApply();
+}
+function setLang(l) {
+  A.lang = l === 'en' ? 'en' : 'zh';
+  try { localStorage.setItem('ladder.lang', A.lang); } catch (e) { /* 無法存也沒關係 */ }
+  document.documentElement.lang = A.lang === 'en' ? 'en' : 'zh-Hant';
+  document.body.classList.toggle('en', A.lang === 'en');
+  $('gLang').textContent = A.lang === 'en' ? '中' : 'EN';
+  $('gLang').title = A.lang === 'en' ? '切換成中文' : 'Switch to English';
+  if (A.lang === 'en') i18nStart();
+  else { if (I18N_OBS) I18N_OBS.disconnect(); i18nRestore(document.body); document.title = '資產買賣紀錄與掛單規劃本'; }
+}
+
+$('gLang').addEventListener('click', () => setLang(A.lang === 'en' ? 'zh' : 'en'));
+setLang(A.lang);
 $('gCcy').value = A.ccy;
 $('gCcy').addEventListener('change', e => {
   A.ccy = e.target.value;
