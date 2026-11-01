@@ -318,7 +318,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.14';
+const APP_UI_VER = '3.15';
 const SELF_URL = '__SELF_URL__';   // 由伺服器塞入（Apps Script 版）
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
@@ -1811,9 +1811,9 @@ function vSettings() {
       <label>網路搜尋<select id="aiSearch"><option value="1" ${ai.search ? 'selected' : ''}>開（搜尋最新消息，最多 3 次）</option><option value="0" ${ai.search ? '' : 'selected'}>關（只看你的資料，較快）</option></select></label>
     </div>
     <div class="foot">${ai.hasKey ? '<button class="btn danger" data-act="aiClear" style="margin-right:auto">移除 Key</button>' : ''}<button class="btn primary" data-act="aiSave">儲存 AI 設定</button></div></div>`;
-  h += `<div class="card mt"><h2>資產與現價<span class="sp"></span><button class="btn sm" data-act="refresh">↻ 更新現價</button></h2>
+  h += `<div class="card mt"><h2>資產與現價<span class="sp"></span><button class="btn sm" data-act="fetchLogos" title="用各公司官網的網站圖示當資產圖示">🏷 抓公司圖示</button><button class="btn sm" data-act="refresh">↻ 更新現價</button></h2>
     <p class="small muted" style="margin-top:0">現價優先順序：手動價格 ＞ CoinGecko（約 3 分鐘更新）＞ GOOGLEFINANCE。CoinGecko ID 例如 bitcoin、ethereum、cardano、solana；美股用 GOOGLEFINANCE 代碼，例如 NASDAQ:MSTR；也可以寫運算式，例如 GOOGLEFINANCE("TPE:2330")*1000（以「張」計價）。<br>計價幣別：每個資產的價格、掛單與成交都以它的「計價幣別」記錄（加密貨幣通常是 USD）。右上角可以切換用 原幣／USD／人民幣／台幣 顯示：現價與掛單用最新匯率換算，成交紀錄用成交日附近的匯率換算（沒有日期的用最新匯率）。${(() => { const fx = A.raw.fx && A.raw.fx.latest; return fx ? `目前匯率：1 USD ＝ ${nf(fx.CNY, 4)} CNY ＝ ${nf(fx.TWD, 3)} TWD ＝ ${nf(fx.HKD, 4)} HKD（${esc(fx.date || '')}${fx.stale ? '，暫時抓不到新資料，使用上次的匯率' : ''}）。` : '<b>目前抓不到匯率</b>，切換幣別會暫時以原幣顯示。'; })()}</p>
-    <div class="tw"><table><thead><tr><th class="l">資產</th><th class="l">GOOGLEFINANCE 代碼</th><th class="l">CoinGecko ID</th><th>手動價格</th><th>數量小數位</th><th>價格小數位</th><th class="l">計價幣別</th><th class="l">數量單位</th><th class="l">圖示網址（選填）</th><th class="l">備註</th><th>目前現價</th><th></th></tr></thead><tbody id="asBody">`;
+    <div class="tw"><table><thead><tr><th class="l">資產</th><th class="l">GOOGLEFINANCE 代碼</th><th class="l">CoinGecko ID</th><th>手動價格</th><th>數量小數位</th><th>價格小數位</th><th class="l">計價幣別</th><th class="l">數量單位</th><th class="l">圖示（網址或公司網域）</th><th class="l">備註</th><th>目前現價</th><th></th></tr></thead><tbody id="asBody">`;
   A.raw.assets.forEach((a, i) => { h += assetRow(a, i); });
   h += `</tbody></table></div><div class="foot"><button class="btn" data-act="addAsset" style="margin-right:auto">＋ 新增資產</button><button class="btn primary" data-act="saveAssets">儲存資產設定</button></div></div>`;
   view().innerHTML = h;
@@ -1854,7 +1854,7 @@ function assetRow(a, i) {
     <td><input class="in" style="width:60px;border-color:var(--line);background:#fff" data-f="pd" type="number" step="1" value="${a.pd}"></td>
     <td class="l"><select data-f="ccy" style="height:28px" ${a.name && A.raw && (A.raw.orders.some(o => o.asset === a.name) || A.raw.trades.some(t => t.asset === a.name) || A.raw.real.some(t => t.asset === a.name)) ? 'disabled title="已有掛單或成交紀錄，不能改計價幣別"' : ''}>${['USD', 'CNY', 'TWD', 'HKD'].map(c => `<option value="${c}" ${(a.ccy || 'USD') === c ? 'selected' : ''}>${c}</option>`).join('')}</select></td>
     <td class="l"><input class="in" style="width:56px;text-align:left;border-color:var(--line);background:#fff" data-f="unit" value="${esc(a.unit || '')}" placeholder="${esc(a.name || '')}"></td>
-    <td class="l"><input class="in" style="width:150px;text-align:left;border-color:var(--line);background:#fff" data-f="logo" value="${esc(a.logo || '')}" placeholder="https:&#47;&#47;…png"></td>
+    <td class="l"><input class="in" style="width:150px;text-align:left;border-color:var(--line);background:#fff" data-f="logo" value="${esc(a.logo || '')}" placeholder="網址或網域（apple.com）"></td>
     <td class="l"><input class="in" style="width:150px;text-align:left;border-color:var(--line);background:#fff" data-f="note" value="${esc(a.note)}"></td>
     <td>${a.price ? nf(a.price, a.pd) + ` <span class="muted small">${esc(a.ccy || 'USD')} · ${esc(a.source)}</span>` : '<span class="muted">—</span>'}</td>
     <td><button class="ibtn" data-act="delAsset" title="移除">✕</button></td></tr>`;
@@ -2465,6 +2465,13 @@ function realGoto(id) {
   row.scrollIntoView({ behavior: 'smooth', block: 'center' });
   row.classList.remove('r-hl'); void row.offsetWidth; row.classList.add('r-hl');
   setTimeout(() => row.classList.remove('r-hl'), 2600);
+}
+function fetchLogos() {
+  toast('正在抓公司圖示…', false, 20000);
+  call('api_fetchLogos', [{ force: false }], r => {
+    const msg = (r.done.length ? '已抓到：' + r.done.join('、') : '沒有新抓到的圖示') + (r.fail.length ? '；抓不到：' + r.fail.join('、') : '');
+    call('api_load', [], () => { render(); toast(msg, !r.done.length, 6000); });
+  });
 }
 function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x || 1))); const m = x / p; return (m >= 5 ? 5 : m >= 2 ? 2 : 1) * p; }
 
@@ -3106,6 +3113,12 @@ HKD（港幣）⇒HKD (Hong Kong dollar)
 （介面與伺服器版本不同，通常幾分鐘內會一致；要立刻更新可在網址後加 &fresh=1 重新整理）⇒(UI and server versions differ; they usually match within minutes. To update now, add &fresh=1 to the URL and reload)
 （伺服器程式還是舊版，請把「任何人」的部署改成新版本）⇒(server code is outdated; update the "Anyone" deployment to the new version)
 全選⇒Select all
+🏷 抓公司圖示⇒🏷 Fetch company icons
+用各公司官網的網站圖示當資產圖示⇒Use each company's website icon as the asset icon
+網址或網域（apple.com）⇒URL or domain (apple.com)
+圖示（網址或公司網域）⇒Icon (URL or company domain)
+正在抓公司圖示…⇒Fetching company icons…
+沒有新抓到的圖示⇒No new icons fetched
 這筆交易不在目前的列表裡（可能被篩選條件排除）⇒This trade is not in the current list (it may be filtered out)
 圓點大小 = 數量⇒Dot size = quantity
 點圓點可跳到該筆交易⇒Click a dot to jump to that trade
@@ -3443,6 +3456,7 @@ document.addEventListener('click', e => {
     case 'rfPick': A.rf.asset = d.asset; return render();
     case 'editReal': return openReal(d.id);
     case 'addReal': return openReal(null);
+    case 'fetchLogos': return fetchLogos();
     case 'realImport': return openRealImport();
     case 'realConfirm': return call('api_confirmReal', [[d.id]], () => { toast('已確認'); render(); });
     case 'doneToggle': A.doneOpen = !A.doneOpen; render(); { const el = $('doneCard'); if (el && A.doneOpen) el.scrollIntoView({ block: 'nearest' }); } return;

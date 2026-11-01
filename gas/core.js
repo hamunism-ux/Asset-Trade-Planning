@@ -14,7 +14,7 @@
  * ============================================================
  */
 
-const APP_VER = '3.14';
+const APP_VER = '3.15';
 const SH = { ORD: '掛單簿', LOG: '成交紀錄', REAL: '真實交易紀錄', DONE: '已結束項目', HOLD: '持倉', GRP: '組參數', ASSET: '資產', SET: '設定' };
 const TABLES = ['ORD', 'LOG', 'REAL', 'DONE', 'HOLD', 'GRP', 'ASSET', 'SET'];
 const OLD_SHEETS = ['儀表板', '階梯檢視', '說明與筆記', '_圖表資料'];   // v1 留下的工作表
@@ -1027,6 +1027,53 @@ function api_saveAssets(list) {
   });
 }
 
+// ── 公司圖示：用各公司官網的網站圖示（favicon），存成 data URI 寫進資產的「圖示」欄 ──
+// 不會自己畫 logo；只是把官網提供的圖示抓下來存著。圖示欄填「網址」就直接用，填「網域」（例如 apple.com）就抓它的網站圖示。
+const LOGO_DOMAINS = {
+  MSTR: 'strategy.com', '易方达沪深300': 'efunds.com.cn', '騰訊控股': 'tencent.com', '兆豐金': 'megabank.com.tw', '台積電': 'tsmc.com',
+  GOOGL: 'google.com', GOOG: 'google.com', AAPL: 'apple.com', TSLA: 'tesla.com', 'BRK.B': 'berkshirehathaway.com', 'BRK.A': 'berkshirehathaway.com',
+  MSFT: 'microsoft.com', NVDA: 'nvidia.com', AMZN: 'amazon.com', META: 'meta.com', NFLX: 'netflix.com', AMD: 'amd.com', COIN: 'coinbase.com', TSM: 'tsmc.com'
+};
+function logoDomain_(a) {
+  const v = str_(a.logo);
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(v)) return v.toLowerCase();
+  if (v && !/^data:/.test(v)) return '';   // 使用者自己填的圖片網址，不動
+  const m = /#([a-z0-9.-]+)$/i.exec(v);       // 之前抓的時候把網域記在 data URI 後面
+  if (m) return m[1].toLowerCase();
+  return LOGO_DOMAINS[a.name] || LOGO_DOMAINS[String(a.name).toUpperCase()] || '';
+}
+function fetchFavicon_(domain) {
+  const urls = ['https://www.google.com/s2/favicons?domain=' + encodeURIComponent(domain) + '&sz=64',
+    'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(domain) + '.ico'];
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const res = UrlFetchApp.fetch(urls[i], { muteHttpExceptions: true, followRedirects: true });
+      if (res.getResponseCode() !== 200) continue;
+      const blob = res.getBlob(), bytes = blob.getBytes();
+      let type = String(blob.getContentType() || '');
+      if (!/^image\//.test(type)) type = /\.ico$/.test(urls[i]) ? 'image/x-icon' : 'image/png';
+      if (bytes.length < 80 || bytes.length > 30000) continue;   // 空圖或太大（試算表一格最多 5 萬字）
+      return 'data:' + type + ';base64,' + Utilities.base64Encode(bytes);
+    } catch (e) { /* 試下一個來源 */ }
+  }
+  return '';
+}
+/** 幫沒有圖示的資產抓公司圖示（force=true 則連已經有的也重抓；只處理有網域可查的） */
+function api_fetchLogos(opt) {
+  opt = opt || {};
+  const rows = readAssetRows_().map(a => ({ name: a.name, gf: a.gf, cg: a.cg, manual: a.manual, qd: a.qd, pd: a.pd, note: a.note, logo: a.logo, ccy: a.ccy, unit: a.unit }));
+  const done = [], skip = [], fail = [];
+  rows.forEach(a => {
+    const d = logoDomain_(a);
+    if (!d) { skip.push(a.name); return; }
+    if (!opt.force && /^data:/.test(str_(a.logo))) { skip.push(a.name); return; }
+    const uri = fetchFavicon_(d);
+    if (uri) { a.logo = uri + '#' + d; done.push(a.name); } else fail.push(a.name + '（' + d + '）');
+  });
+  if (done.length) mutate_(() => writeAssets_(rows));
+  return { done: done, skip: skip, fail: fail };
+}
+
 function api_refreshPrices() {
   const ids = readAssetRows_().map(a => a.cg).filter(Boolean);
   CacheService.getScriptCache().remove(cgCacheKey_(ids));
@@ -1365,7 +1412,7 @@ function syncMutations_() {
 }
 function syncCalls_() {
   return { api_load, api_refreshPrices, api_saveAi, api_aiList, api_aiDelete, api_aiStep, api_renameAccount, api_deleteAccount,
-    api_saveAssets, api_addAccount, api_setPassword, api_priceHistory };
+    api_saveAssets, api_addAccount, api_setPassword, api_priceHistory, api_fetchLogos };
 }
 function safeEq_(a, b) {
   if (a.length !== b.length) return false;
@@ -1637,5 +1684,5 @@ function assignIds_(orders, prefix) {
 }
 
 // ── 匯出（由 build 產生）──
-const __EXPORTS = { __CORE_EXPORTS__: true, APP_VER: APP_VER, aiCfg_: aiCfg_, aiContext_: aiContext_, aiNeedKey_: aiNeedKey_, aiSheet_: aiSheet_, api_addAccount: api_addAccount, api_addOrder: api_addOrder, api_addOrders: api_addOrders, api_aiDelete: api_aiDelete, api_aiList: api_aiList, api_aiStep: api_aiStep, api_confirmReal: api_confirmReal, api_deleteAccount: api_deleteAccount, api_deleteDone: api_deleteDone, api_deleteHolding: api_deleteHolding, api_deleteOrders: api_deleteOrders, api_deleteReal: api_deleteReal, api_deleteTrade: api_deleteTrade, api_duplicate: api_duplicate, api_importReal: api_importReal, api_load: api_load, api_priceHistory: api_priceHistory, api_recordFills: api_recordFills, api_refreshPrices: api_refreshPrices, api_renameAccount: api_renameAccount, api_saveAi: api_saveAi, api_saveAssets: api_saveAssets, api_saveDone: api_saveDone, api_saveHolding: api_saveHolding, api_saveNotes: api_saveNotes, api_saveReal: api_saveReal, api_saveSettings: api_saveSettings, api_saveTrade: api_saveTrade, api_setPassword: api_setPassword, api_setStatus: api_setStatus, api_setup: api_setup, api_updateOrder: api_updateOrder, assignIds_: assignIds_, cell_: cell_, cgCacheKey_: cgCacheKey_, cgPrices_: cgPrices_, cid_: cid_, claude_: claude_, cleanAcct_: cleanAcct_, daysBetween_: daysBetween_, doGet: doGet, doPost: doPost, doSetup_: doSetup_, ensureTable_: ensureTable_, fixImportNotes_: fixImportNotes_, fixRealKinds_: fixRealKinds_, fxFetchMany_: fxFetchMany_, fxForLoad_: fxForLoad_, fxHist_: fxHist_, fxLatest_: fxLatest_, fxParse_: fxParse_, fxUrls_: fxUrls_, ghFetch_: ghFetch_, guessKind_: guessKind_, intOr_: intOr_, isGfExpr_: isGfExpr_, isReady_: isReady_, ms_: ms_, mutate_: mutate_, nextIds_: nextIds_, normCcy_: normCcy_, num_: num_, onOpen: onOpen, phCoinGecko_: phCoinGecko_, phGoogleFinance_: phGoogleFinance_, phKraken_: phKraken_, phRead_: phRead_, phWeekly_: phWeekly_, phYahooSymbol_: phYahooSymbol_, phYahoo_: phYahoo_, pwHash_: pwHash_, readAssetRows_: readAssetRows_, readAssets_: readAssets_, readOrders_: readOrders_, readSettings_: readSettings_, readT_: readT_, readV1_: readV1_, realKind_: realKind_, round_: round_, rpc: rpc, safeEq_: safeEq_, seed_: seed_, setup: setup, sheet_: sheet_, showWebAppLink: showWebAppLink, ss_: ss_, str_: str_, syncCalls_: syncCalls_, syncMutations_: syncMutations_, syncOps_: syncOps_, syncResetKey: syncResetKey, syncSetup: syncSetup, syncTransient_: syncTransient_, thinkingFor_: thinkingFor_, toSet_: toSet_, uiHtml_: uiHtml_, uiInject_: uiInject_, uiSourceToggle: uiSourceToggle, uiSource_: uiSource_, updateFromGitHub: updateFromGitHub, writeAssets_: writeAssets_, writeOrders_: writeOrders_, writeSettings_: writeSettings_, writeT_: writeT_ };
+const __EXPORTS = { __CORE_EXPORTS__: true, APP_VER: APP_VER, aiCfg_: aiCfg_, aiContext_: aiContext_, aiNeedKey_: aiNeedKey_, aiSheet_: aiSheet_, api_addAccount: api_addAccount, api_addOrder: api_addOrder, api_addOrders: api_addOrders, api_aiDelete: api_aiDelete, api_aiList: api_aiList, api_aiStep: api_aiStep, api_confirmReal: api_confirmReal, api_deleteAccount: api_deleteAccount, api_deleteDone: api_deleteDone, api_deleteHolding: api_deleteHolding, api_deleteOrders: api_deleteOrders, api_deleteReal: api_deleteReal, api_deleteTrade: api_deleteTrade, api_duplicate: api_duplicate, api_fetchLogos: api_fetchLogos, api_importReal: api_importReal, api_load: api_load, api_priceHistory: api_priceHistory, api_recordFills: api_recordFills, api_refreshPrices: api_refreshPrices, api_renameAccount: api_renameAccount, api_saveAi: api_saveAi, api_saveAssets: api_saveAssets, api_saveDone: api_saveDone, api_saveHolding: api_saveHolding, api_saveNotes: api_saveNotes, api_saveReal: api_saveReal, api_saveSettings: api_saveSettings, api_saveTrade: api_saveTrade, api_setPassword: api_setPassword, api_setStatus: api_setStatus, api_setup: api_setup, api_updateOrder: api_updateOrder, assignIds_: assignIds_, cell_: cell_, cgCacheKey_: cgCacheKey_, cgPrices_: cgPrices_, cid_: cid_, claude_: claude_, cleanAcct_: cleanAcct_, daysBetween_: daysBetween_, doGet: doGet, doPost: doPost, doSetup_: doSetup_, ensureTable_: ensureTable_, fetchFavicon_: fetchFavicon_, fixImportNotes_: fixImportNotes_, fixRealKinds_: fixRealKinds_, fxFetchMany_: fxFetchMany_, fxForLoad_: fxForLoad_, fxHist_: fxHist_, fxLatest_: fxLatest_, fxParse_: fxParse_, fxUrls_: fxUrls_, ghFetch_: ghFetch_, guessKind_: guessKind_, intOr_: intOr_, isGfExpr_: isGfExpr_, isReady_: isReady_, logoDomain_: logoDomain_, ms_: ms_, mutate_: mutate_, nextIds_: nextIds_, normCcy_: normCcy_, num_: num_, onOpen: onOpen, phCoinGecko_: phCoinGecko_, phGoogleFinance_: phGoogleFinance_, phKraken_: phKraken_, phRead_: phRead_, phWeekly_: phWeekly_, phYahooSymbol_: phYahooSymbol_, phYahoo_: phYahoo_, pwHash_: pwHash_, readAssetRows_: readAssetRows_, readAssets_: readAssets_, readOrders_: readOrders_, readSettings_: readSettings_, readT_: readT_, readV1_: readV1_, realKind_: realKind_, round_: round_, rpc: rpc, safeEq_: safeEq_, seed_: seed_, setup: setup, sheet_: sheet_, showWebAppLink: showWebAppLink, ss_: ss_, str_: str_, syncCalls_: syncCalls_, syncMutations_: syncMutations_, syncOps_: syncOps_, syncResetKey: syncResetKey, syncSetup: syncSetup, syncTransient_: syncTransient_, thinkingFor_: thinkingFor_, toSet_: toSet_, uiHtml_: uiHtml_, uiInject_: uiInject_, uiSourceToggle: uiSourceToggle, uiSource_: uiSource_, updateFromGitHub: updateFromGitHub, writeAssets_: writeAssets_, writeOrders_: writeOrders_, writeSettings_: writeSettings_, writeT_: writeT_ };
 return __EXPORTS;

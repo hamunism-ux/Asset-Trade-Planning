@@ -1,5 +1,5 @@
 // 資產掛單規劃本：離線快取（只快取介面檔案，不快取任何資料請求）
-const SHELL = 'ladder-shell-5a9cad57';
+const SHELL = 'ladder-shell-b0515519';
 const RUNTIME = 'ladder-runtime';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'];
 
