@@ -14,7 +14,7 @@
  * ============================================================
  */
 
-const APP_VER = '3.13';
+const APP_VER = '3.14';
 const SH = { ORD: '掛單簿', LOG: '成交紀錄', REAL: '真實交易紀錄', DONE: '已結束項目', HOLD: '持倉', GRP: '組參數', ASSET: '資產', SET: '設定' };
 const TABLES = ['ORD', 'LOG', 'REAL', 'DONE', 'HOLD', 'GRP', 'ASSET', 'SET'];
 const OLD_SHEETS = ['儀表板', '階梯檢視', '說明與筆記', '_圖表資料'];   // v1 留下的工作表

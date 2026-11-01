@@ -318,7 +318,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.13';
+const APP_UI_VER = '3.14';
 const SELF_URL = '__SELF_URL__';   // 由伺服器塞入（Apps Script 版）
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
@@ -1489,7 +1489,7 @@ function vSim() {
   const s = A.s;
   if (!A.sim) { A.sim = { acct: A.acct, asset: A.asset, side: '賣' }; simLoad(); }
   const S = A.sim;
-  view().innerHTML = `<h1>掛單情境模擬 <small>推演一組新的階梯掛單；既有的掛單不會被改動</small></h1>
+  view().innerHTML = `<h1>掛單情境模擬</h1>
   <div class="filters">
     <div class="chips" id="smAssets">${s.assets.map(a => `<button class="chipbtn ${a.name === S.asset ? 'on' : ''}" data-a="${esc(a.name)}">${logo(a.name, 16)}${esc(a.name)}</button>`).join('')}</div>
     <div class="seg" id="smSide"><button data-v="賣" class="${S.side === '賣' ? 'on' : ''}">賣出計畫</button><button data-v="買" class="${S.side === '買' ? 'on' : ''}">買入計畫</button></div>
