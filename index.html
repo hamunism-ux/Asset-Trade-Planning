@@ -1016,7 +1016,7 @@ function vOverview() {
       </div></div>`;
   });
   h += '</div>';
-  if (shown.length) h += '<div class="legend mt"><span><i style="background:var(--filled)"></i>已成交</span><span><i style="background:var(--placed)"></i>已掛單</span><span><i style="background:var(--plan)"></i>規劃</span><span class="muted">（長條 = 賣單數量占比）</span></div>';
+  if (shown.length) h += '<div class="legend mt"><span><i style="background:var(--filled)"></i>已成交</span><span><i style="background:var(--placed)"></i>已掛單</span><span><i style="background:var(--plan)"></i>規劃</span></div>';
   view().innerHTML = h;
 }
 /** 目前帳戶是否用到這個資產：有持倉設定，或有任何掛單（含已成交、暫停） */
