@@ -1765,7 +1765,7 @@ function openHoldTime(acct, asset) {
 function vSettings() {
   const s = A.s, st = s.settings;
   const cnt = (list, a) => list.filter(x => x.acct === a).length;
-  let h = `<h1>設定 <small>網頁 v${esc(APP_UI_VER)}${A.raw && A.raw.ver ? ' · 伺服器 v' + esc(A.raw.ver) : ''}${A.raw && A.raw.ver && A.raw.ver !== APP_UI_VER ? ' <span style="color:var(--warn)">（版本不一致，請把部署改成新版本）</span>' : ''}</small></h1>${syncCard()}<div class="grid g2${GAS ? '' : ' mt'}">
+  let h = `<h1>設定 <small>網頁 v${esc(APP_UI_VER)}${A.raw && A.raw.ver ? ' · 伺服器 v' + esc(A.raw.ver) : ''}${A.raw && A.raw.ver && A.raw.ver !== APP_UI_VER ? ' <span class="muted">（介面與伺服器版本不同，通常幾分鐘內會一致；要立刻更新可在網址後加 &amp;fresh=1 重新整理）</span>' : ''}</small></h1>${syncCard()}<div class="grid g2${GAS ? '' : ' mt'}">
   <div class="card"><h2>帳戶</h2>
     <div class="tw"><table><thead><tr><th class="l">名稱</th><th>掛單</th><th>掛單成交</th><th>真實交易</th><th>持倉列</th><th class="l">密碼</th><th></th></tr></thead><tbody>
     ${st.accounts.map(a => `<tr><td class="l"><b>${esc(a)}</b>${a === A.acct ? ' <span class="pending" style="background:var(--accent-wash);color:var(--accent-ink)">目前</span>' : ''}</td>
