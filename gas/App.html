@@ -318,7 +318,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.12';
+const APP_UI_VER = '3.13';
 const SELF_URL = '__SELF_URL__';   // 由伺服器塞入（Apps Script 版）
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
@@ -996,7 +996,7 @@ function vOverview() {
     const tot = sS[ST.FILLED].q + sS[ST.PLACED].q + sS[ST.PLAN].q;
     const w = q => tot ? (q / tot * 100) + '%' : '0';
     h += `<div class="card acard" data-act="goAsset" data-asset="${esc(a.name)}">
-      <div class="hd">${logo(a.name, 26)}<b>${esc(a.name)}</b><span class="src">${esc(a.source || '沒有價格')}</span><span class="p">${fp(a.price, a.name)}</span></div>
+      <div class="hd">${logo(a.name, 26)}<b>${esc(a.name)}</b><span class="src">${a.price ? '' : '沒有價格'}</span><span class="p">${fp(a.price, a.name)}</span></div>
       <div class="kv"><span>持倉${hq !== null && hi.missing.length ? `<small class="muted">（只含 ${esc(hi.known.join('、'))}）</small>` : ''}</span><b>${hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}<small>${hq !== null && a.price ? fusd(hq * a.price, a.name) : ''}</small></b></div>
       ${tot ? `<div class="lbl"><span>賣單完成 <b>${fpct(sS[ST.FILLED].q / tot, false)}</b></span><span>${fq(sS[ST.FILLED].q, a.name)} / ${fq(tot, a.name)}</span></div>
       <div class="bar"><i style="width:${w(sS[ST.FILLED].q)};background:var(--filled)"></i><i style="width:${w(sS[ST.PLACED].q)};background:var(--placed)"></i><i style="width:${w(sS[ST.PLAN].q)};background:var(--plan)"></i></div>` : '<div class="lbl"><span class="muted">沒有賣單</span></div>'}
@@ -1026,7 +1026,7 @@ function vAsset() {
   const n = a.name, sS = sideStats(n, '賣'), sB = sideStats(n, '買'), hi = holdingInfo(n), hq = hi.q;
   const openK = st => sum(st.os.filter(o => (o.status === ST.PLAN || o.status === ST.PLACED) && hi.known.indexOf(o.acct) >= 0), o => o.qty);
   const sK = openK(sS), bK = openK(sB);
-  let h = `<h1><button class="btn sm" data-act="back">← 總覽</button> ${logo(n, 26)} ${esc(n)} <small>${esc(A.acct)} · 現價 ${fp(a.price, n)}（${esc(a.source || '沒有價格')}）</small><span class="sp"></span><button class="btn primary" data-act="aiOpen">🤖 AI 診斷${AI.busy[A.acct + '|' + n] ? '（分析中…）' : ''}</button></h1>
+  let h = `<h1><button class="btn sm" data-act="back">← 總覽</button> ${logo(n, 26)} ${esc(n)} <small>${esc(A.acct)} · 現價 ${a.price ? fp(a.price, n) : '沒有價格'}</small><span class="sp"></span><button class="btn primary" data-act="aiOpen">🤖 AI 診斷${AI.busy[A.acct + '|' + n] ? '（分析中…）' : ''}</button></h1>
     <div class="chips" style="margin-bottom:12px">${s.assets.map(x => `<button class="chipbtn ${x.name === n ? 'on' : ''}" data-act="pickAsset" data-asset="${esc(x.name)}">${logo(x.name, 16)}${esc(x.name)}</button>`).join('')}</div>`;
   const kvS = st => `${fq(st.q, n)}<small>${st.n} 張</small>`;
   h += `<div class="grid g3">
@@ -2090,7 +2090,7 @@ function ordersPdfHtml(list, opt) {
     const qOf = st => sum(all.filter(o => o.status === st), o => o.qty), tot = sum(all, o => o.qty) || 1;
     const open = all.filter(o => o.status === ST.PLAN || o.status === ST.PLACED);
     const hold = holdingInfo(n, g.acct);
-    h += `<div class="pq-g"><div class="pq-gh">${pdfLogo(n, 18)} ${esc(n)} · ${g.side}單<span class="pq-r">現價 ${fp(a.price, n)}${a.source ? '（' + esc(a.source) + '）' : ''} · 以 ${ccyFor(n)} 計</span></div>
+    h += `<div class="pq-g"><div class="pq-gh">${pdfLogo(n, 18)} ${esc(n)} · ${g.side}單<span class="pq-r">現價 ${fp(a.price, n)} · 以 ${ccyFor(n)} 計</span></div>
       <div class="pq-gs">共 ${all.length} 張：已成交 ${all.filter(o => o.status === ST.FILLED).length}（${fq(qOf(ST.FILLED), n)}）· 已掛單 ${all.filter(o => o.status === ST.PLACED).length}（${fq(qOf(ST.PLACED), n)}）· 規劃 ${all.filter(o => o.status === ST.PLAN).length}（${fq(qOf(ST.PLAN), n)}）${qOf(ST.PAUSED) ? ' · 暫停 ' + all.filter(o => o.status === ST.PAUSED).length : ''}
         　未成交 ${fq(sum(open, o => o.qty), n)} ${esc(unitOf(n))}（${fusd(sum(open, o => o.val), n)}）${hold.q !== null && hold.q !== undefined && isFinite(hold.q) && g.side === '賣' && hold.q > 0 ? `　·　占持倉 ${fpct(sum(open, o => o.qty) / hold.q, false)}` : ''}</div>
       <div class="pq-bar">${[[ST.FILLED, COL.filled], [ST.PLACED, COL.placed], [ST.PLAN, COL.plan], [ST.PAUSED, COL.paused]].map(x => qOf(x[0]) > 0 ? `<i style="display:block;width:${(qOf(x[0]) / tot * 100).toFixed(2)}%;background:${x[1]}"></i>` : '').join('')}</div>
@@ -2227,8 +2227,7 @@ function vReal() {
       const diff = hq !== null ? st.pos - hq : null, tol = Math.pow(10, -qdOf(a.name)) / 2;
       h += `<div class="kpi"${assets.length === 1 ? ' style="max-width:560px"' : ''}><div class="l">${logo(a.name, 16)} <b style="color:var(--ink)">${esc(a.name)}</b>　${st.n} 筆${st.fee ? '　手續費 ' + fusd(st.fee, a.name) : ''}</div>
         <div class="kv" style="margin-top:4px"><span>淨部位</span><b class="${st.pos < 0 ? 'down' : ''}">${fq(st.pos, a.name)} ${esc(unitOf(a.name))}<small>${a.price ? '市值 ' + fusd(st.pos * a.price, a.name) : ''}</small></b>
-        <span>法幣淨投入<small class="muted" style="display:block">用錢買 − 賣成錢；幣幣交換、轉帳不算</small></span><b class="${st.net <= 0 ? 'up' : ''}">${st.net > 0 ? fusd(st.net, a.name) : '已全部回本'}<small>${st.net > 0 ? (st.unitCost ? '剩餘部位每單位成本 ' + fp(st.unitCost, a.name) : '') : '多收回 ' + fusd(-st.net, a.name) + '，剩餘部位成本 0'}</small></b>
-        ${st.swapIn || st.swapOut || st.xIn || st.xOut ? `<span>幣幣／轉帳</span><b style="font-weight:500;font-size:12px">${st.swapIn || st.swapOut ? `換入 ${fq(st.swapIn, a.name)}、換出 ${fq(st.swapOut, a.name)}` : ''}${(st.swapIn || st.swapOut) && (st.xIn || st.xOut) ? '；' : ''}${st.xIn || st.xOut ? `轉入 ${fq(st.xIn, a.name)}、轉出 ${fq(st.xOut, a.name)}` : ''}</b>` : ''}
+        <span>法幣淨投入</span><b class="${st.net <= 0 ? 'up' : ''}">${st.net > 0 ? fusd(st.net, a.name) : '已全部回本'}<small>${st.net > 0 ? (st.unitCost ? '剩餘部位每單位成本 ' + fp(st.unitCost, a.name) : '') : '多收回 ' + fusd(-st.net, a.name) + '，剩餘部位成本 0'}</small></b>
         <span>設定的持倉</span><b>${follow ? `<span class="muted small">跟隨真實交易</span> ${fq(hq, a.name)}` : hq === null ? '<span class="muted">未設定</span>' : fq(hq, a.name)}${!follow && diff !== null && Math.abs(diff) > tol ? `<small class="${diff > 0 ? 'up' : 'down'}">差 ${diff > 0 ? '+' : ''}${fq(diff, a.name)}</small>` : ''}</b></div>
         ${follow ? '' : `<div style="margin-top:6px" class="small"><span class="tlink" data-act="realFollow" data-asset="${esc(a.name)}">讓持倉跟隨真實交易紀錄</span>${diff === null || Math.abs(diff) > tol ? `　·　<span class="tlink" data-act="realToHold" data-asset="${esc(a.name)}">只把現在的淨部位 ${fq(st.pos, a.name)} 填進手動持倉</span>` : ''}</div>`}</div>`;
     });
