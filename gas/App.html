@@ -313,7 +313,7 @@ setTimeout(function () { if (!window.__booted) window.__bootErr('載入超過 40
 <script>
 (function () {
 'use strict';
-const APP_UI_VER = '3.7';
+const APP_UI_VER = '3.8';
 const ST = { PLAN: '規劃', PLACED: '已掛單', FILLED: '已成交', PAUSED: '暫停' };
 const STATUSES = [ST.PLAN, ST.PLACED, ST.FILLED, ST.PAUSED];
 const SCLS = { '規劃': 's-plan', '已掛單': 's-placed', '已成交': 's-filled', '暫停': 's-paused' };
@@ -409,7 +409,7 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 const localDay = ms => { const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
 function gasRun(fn, args) {
-  return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej)[fn].apply(null, args || []));
+  return new Promise((res, rej) => google.script.run.withSuccessHandler(res).withFailureHandler(rej).rpc(fn, args || []));
 }
 function apiPost(body, ms) {
   if (!SY.cfg || !SY.cfg.url) return Promise.reject(new Error('還沒設定同步網址'));
@@ -739,7 +739,7 @@ function call(fn, args, ok, opts) {
     if (!opts.silent) busy(1);
     google.script.run
       .withSuccessHandler(r => { if (!opts.silent) busy(-1); if (r && r.orders) setState(r); if (ok) ok(r); })
-      .withFailureHandler(e => { if (!opts.silent) busy(-1); toast('⚠ ' + (e && e.message ? e.message : e), true); })[fn].apply(null, args);
+      .withFailureHandler(e => { if (!opts.silent) busy(-1); toast('⚠ ' + (e && e.message ? e.message : e), true); }).rpc(fn, args);
     return;
   }
   if (LOCAL[fn]) {
@@ -2708,7 +2708,7 @@ function boot() {
       if (s.needsSetup) { A.s = s; renderSetup(); window.__booted = true; return; }
       setState(s); render(); window.__booted = true;
     } catch (e) { window.__bootErr('畫面產生失敗：' + (e && e.message) + '\n' + String(e && e.stack || '').split('\n').slice(0, 4).join('\n') + '\n（版本 ' + (s.ver || '?') + '）'); }
-  }).withFailureHandler(e => { busy(-1); window.__booted = true; view().innerHTML = `<div class="card setup"><h2>讀取失敗</h2><p>${esc(e && e.message ? e.message : e)}</p></div>`; }).api_load();
+  }).withFailureHandler(e => { busy(-1); window.__booted = true; view().innerHTML = `<div class="card setup"><h2>讀取失敗</h2><p>${esc(e && e.message ? e.message : e)}</p></div>`; }).rpc('api_load', []);
 }
 function bootPwa() {
   syncWire(); syncBadge();
